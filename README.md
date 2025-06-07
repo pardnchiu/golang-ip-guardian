@@ -5,36 +5,29 @@
 ```mermaid
 flowchart TD
   A["HTTP Request Reception"] --> V1{"IP Format & Header Validation"}
-  V1 -->|"Invalid Format"| Y["Request Denied"]:::danger
+  V1 -->|"Invalid Format"| Y["Request Rejected"]:::danger
   V1 -->|"Missing Headers"| Y
   V1 -->|"Validation Passed"| DEVICE_INFO["Device Fingerprint & Session Management"]:::module
   
   DEVICE_INFO --> L{"IP Category Classification"}
   L -->|"Block List Match"| BT["Block Status Check"]
-  L -->|"Internal Network Unmarked"| DYNAMIC_SCORE
-  L -->|"External Network Unmarked"| T_TOKEN{"AbuseIPDB Token Check"}
+  L -->|"Internal Network Unlabeled"| DYNAMIC_SCORE
+  L -->|"External Network Unlabeled"| ABUSE_CHECK["AbuseIPDB Threat Intelligence Check"]:::module
   L -->|"Whitelist Match"| Z_ALLOW["Request Allowed"]:::success
   L -->|"Blacklist Match"| Y
   
-  BT --> BD{"Request Frequency Assessment"}
+  BT --> BD{"Request Frequency Evaluation"}
   BD -->|"Normal Frequency"| BF["Block Time Extension (Exponential)"] --> Y
   BD -->|"Abnormal Frequency"| Y
   
-  T_TOKEN -->|"Token Missing"| DYNAMIC_SCORE
-  T_TOKEN -->|"Token Exists"| D{"AbuseIPDB Cache Check"}
-  D -->|"Cache Hit"| E1{"IP Reputation Check"}
-  D -->|"Cache Miss"| F_API["AbuseIPDB API Query & Cache Update (24h)"]
-  F_API --> M_API{"API Response Status"}
-  M_API -->|"Query Failed"| DYNAMIC_SCORE
-  M_API -->|"Query Success"| E1
+  ABUSE_CHECK -->|"Malicious IP Confirmed"| Y
+  ABUSE_CHECK -->|"Normal Reputation"| DYNAMIC_SCORE
+  ABUSE_CHECK -->|"Check Failed/No Token"| DYNAMIC_SCORE
   
-  E1 -->|"Malicious IP"| Y
-  E1 -->|"Normal Reputation"| DYNAMIC_SCORE["Multi-Dimensional Suspicious Activity Detection"]:::module
-  
-  DYNAMIC_SCORE --> SECURE_RESULT["Comprehensive Security Assessment"]:::module
+  DYNAMIC_SCORE["Multi-dimensional Suspicious Activity Detection"]:::module --> SECURE_RESULT["Comprehensive Security Assessment & Risk Determination"]:::module
   
   SECURE_RESULT -->|"Security Check Passed"| Z_ALLOW
-  SECURE_RESULT -->|"Risk Above Threshold"| Y
+  SECURE_RESULT -->|"Risk Exceeds Threshold"| Y
   
   classDef success fill:#2ecc71,stroke:#27ae60,color:#ffffff
   classDef danger fill:#e74c3c,stroke:#c0392b,color:#ffffff
@@ -43,80 +36,97 @@ flowchart TD
   class A,V1,L main
 ```
 
-## Device Fingerprint & Session Management
+## Device Info
 
 ```mermaid
 graph TD
-    A[HTTP Request Reception] --> E{Proxy Header Detection}
-    E -->|CF-Connecting-IP| F[Extract Real IP from Headers]
-    E -->|X-Forwarded-For| F
-    E -->|X-Real-IP| F
-    E -->|Other Proxy Headers| F
-    E -->|No Headers| G[Use RemoteAddr]
+    A[HTTP Request Reception] --> B[getDevice Extract Device Information]
     
-    F --> H[IP Address Parse]
-    G --> H
-    H --> I[Internal IP Check]
+    B --> C[r.UserAgent Get User-Agent]
+    C --> D[getClientIP IP Address Resolution]
     
-    I --> J{Proxy Headers Present?}
-    J -->|Yes| K[Proxy Chain Integrity Check]
-    J -->|No| L[Direct Connection IP Check]
+    D --> E[Check Proxy Header Priority]
+    E --> F1[CF-Connecting-IP Cloudflare]
+    E --> F2[X-Forwarded-For Standard Reverse Proxy]
+    E --> F3[X-Real-IP Nginx]
+    E --> F4[X-Client-IP Apache]
+    E --> F5[Other Proxy Headers]
     
-    K --> M{All Proxy Chain Internal?}
-    L --> N{Direct IP Internal?}
+    F1 --> G[Parse and Validate IP Format]
+    F2 --> G
+    F3 --> G
+    F4 --> G
+    F5 --> G
     
-    M -->|Yes| O[IsPrivate=true, Level=1]
-    M -->|No| P[IsPrivate=false, Level=0]
-    N -->|Yes| O
-    N -->|No| P
+    G --> H{Valid Proxy IP?}
+    H -->|No| I[Use RemoteAddr]
+    H -->|Yes| J[isInternalIP Internal Network Check]
+    I --> J
     
-    O --> Q[User-Agent Header Parse]
-    P --> Q
+    J --> K[hasProxyHeader Proxy Header Check]
+    K --> L{Has Proxy Header?}
+    L -->|Yes| M[checkProxy Proxy Chain Validation]
+    L -->|No| N[Direct IP Internal Network Check]
     
-    Q --> R[Platform Info Extract]
-    Q --> S[Browser Info Extract]
-    Q --> T[Device Type Identify]
-    Q --> U[OS Identify]
+    M --> O[isInternalIPRange CIDR Check]
+    N --> O
+    O --> P[Set isPrivate and ipTrustLevel]
     
-    R --> V[Device Base Info Structure]
-    S --> V
-    T --> V
-    U --> V
+    P --> Q[User-Agent Parsing Process]
+    Q --> R[getPlatform Platform Identification]
+    R --> S[getBrowser Browser Identification]
+    S --> T[getType Device Type Identification]
+    T --> U[getOS Operating System Identification]
     
-    V --> X{Session Cookie Exists?}
+    U --> V[Build Base Device Structure]
+    V --> W[Manager Status Check]
+    W --> X[Trust.check Trust List Check]
+    X --> Y[Ban.check Ban List Check]
+    Y --> Z[Block.check Block List Check]
     
-    X -->|Yes| Y[Session ID Signature Parse]
-    Y --> Z{HMAC-SHA256 Valid?}
-    Z -->|Yes| AA[Extend Session Cookie 30 days]
-    AA --> BB[Return Existing Session ID]
+    Z --> AA[requestCountInMin Minute Request Count]
+    AA --> BB[blockCountInHour Hour Block Count]
     
-    Z -->|No| CC[Generate New Session ID Signature]
-    X -->|No| CC
+    BB --> CC[getSessionID Session Management]
+    CC --> DD{Session Cookie Exists?}
     
-    CC --> DD[Generate 32-char Session ID]
-    DD --> EE[Calculate HMAC-SHA256]
-    EE --> FF[Combine s:sessionID.signature]
-    FF --> GG[Set Session Cookie 30d Sliding]
-    GG --> HH[Return New Session ID]
+    DD -->|Yes| EE[parseSignedSessionID Parse Signature]
+    EE --> FF{HMAC-SHA256 Signature Valid?}
+    FF -->|Yes| GG[Extend Cookie 30 Days]
+    FF -->|No| HH[createSignedSessionID Create New Session]
     
-    BB --> JJ{Device Cookie Exists?}
-    HH --> JJ
+    DD -->|No| HH
+    HH --> II[generateSessionID Generate 32-char ID]
+    II --> JJ[signSessionID HMAC Signature]
+    JJ --> KK[Format: s:sessionID.signature]
+    KK --> LL[Set 30-day HttpOnly Cookie]
     
-    JJ -->|Yes| KK[Read Existing Device Key]
-    KK --> LL[Extend Device Cookie 365d]
+    GG --> MM[getFingerprint Device Fingerprint Generation]
+    LL --> MM
     
-    JJ -->|No| MM[Generate UUID Device Key]
-    MM --> NN[Set Device Cookie 365d Sliding]
+    MM --> NN{Device Cookie Exists?}
+    NN -->|Yes| OO[Read Existing Device Key]
+    NN -->|No| PP[uuid Generate 128-char Random Key]
     
-    LL --> OO[Complete Device Info]
-    NN --> OO
-    OO --> PP[Platform+Browser+Type+OS+Key]
-    PP --> QQ[SHA256 Device Fingerprint]
-    QQ --> TT[Return Device Fingerprint & Session]
+    OO --> QQ[Extend Cookie 365 Days]
+    PP --> RR[Set 365-day HttpOnly Cookie]
     
-    subgraph "IP Detection & Proxy Validation"
+    QQ --> SS[Build Fingerprint Information String]
+    RR --> SS
+    SS --> TT[Platform/Browser/Type/OS/Key]
+    TT --> UU[SHA256 Hash Calculation]
+    UU --> VV[hex.EncodeToString Fingerprint Generation]
+    
+    VV --> WW[Return Complete Device Structure]
+    
+    subgraph "IP Address Resolution & Proxy Detection"
+        D
         E
-        F
+        F1
+        F2
+        F3
+        F4
+        F5
         G
         H
         I
@@ -125,161 +135,293 @@ graph TD
         L
         M
         N
+        O
+        P
     end
     
-    subgraph "User-Agent Parse Engine"
+    subgraph "User-Agent Parsing Engine"
+        Q
         R
         S
         T
         U
     end
     
-    subgraph "Session Management (30d Sliding)"
+    subgraph "Security Status Check"
+        W
         X
         Y
         Z
         AA
+        BB
+    end
+    
+    subgraph "Session Management (30-day Sliding Window)"
         CC
         DD
         EE
         FF
         GG
-    end
-    
-    subgraph "Device Fingerprint Tracking (365d Sliding)"
+        HH
+        II
         JJ
         KK
         LL
+    end
+    
+    subgraph "Device Fingerprint Tracking (365-day Sliding Window)"
         MM
         NN
         OO
         PP
         QQ
+        RR
+        SS
+        TT
+        UU
+        VV
     end
+    
+    classDef success fill:#2ecc71,stroke:#27ae60,color:#ffffff
+    
+    class WW success
+    class X,Y,Z security
+    class R,S,T,U process
+    class II,JJ,UU,VV crypto
+```
+
+### AbuseIPDB Check
+
+```mermaid
+flowchart TD
+  START["External IP"] --> TOKEN{"AbuseIPDB Token Check"}
+  
+  TOKEN -->|"Token Not Found"| NO_TOKEN["Skip Threat Intelligence Check"]
+  TOKEN -->|"Token Found"| CACHE{"AbuseIPDB Cache Check"}
+  
+  CACHE -->|"Cache Hit"| REPUTATION{"IP Reputation Validation"}
+  CACHE -->|"Cache Miss"| API_QUERY["AbuseIPDB API Query & Cache Update (24h)"]
+  
+  API_QUERY --> API_STATUS{"API Response Status"}
+  API_STATUS -->|"Query Failed"| API_FAIL["API Query Failed"]
+  API_STATUS -->|"Query Successful"| REPUTATION
+  
+  REPUTATION -->|"Malicious IP Confirmed"| MALICIOUS["Mark as Threat IP"]
+  REPUTATION -->|"Normal Reputation"| CLEAN["Mark as Clean IP"]
+  
+  NO_TOKEN --> SKIP["Skip Check Result"]
+  API_FAIL --> SKIP
+  MALICIOUS --> RESULT["Return Check Result"]
+  CLEAN --> RESULT
+  SKIP --> RESULT
 ```
 
 ## Dynamic Score
 
 ```mermaid
 graph TD
-    A[Start Suspicious Activity Detection] --> B[Build Request Data Structure]
-    B --> C[Initialize Anomaly Flags & Risk Score]
+    A[Start Dynamic Score Calculation dynamicScore] --> B[Initialize Parallel Execution Environment]
+    B --> C[Create WaitGroup, Mutex, errChan]
+    C --> D[Initialize Shared Results: combinedFlags, combinedScore]
     
-    C --> D[Basic Correlation Pattern Detection]
-    D --> E[Execute Redis Pipeline Batch]
-    E --> F[Session-IP Correlation Check]
-    E --> G[IP-Device Correlation Check]
-    E --> H[Device-IP Correlation Check]
+    D --> E[Launch Four Goroutines Simultaneously]
     
-    F --> I{Session Associated IPs > 4?}
-    G --> J{IP Associated Devices > 8?}
-    H --> K{Device Associated IPs > 8?}
+    E --> |wg.Add| I1[Define BasicItem Operations Matrix]
+    E --> |wg.Add| I2{GeoChecker & DB Available?}
+    E --> |wg.Add| I3[Redis Pipeline Get Interval Data]
+    E --> |wg.Add| I4[Calculate Current Minute Timestamp]
     
-    I -->|Yes| L[+25pts Multi-IP Session Anomaly]
-    J -->|Yes| M[+20pts Multi-Device IP Anomaly]
-    K -->|Yes| N[+15pts Multi-IP Device Anomaly]
+    I1 --> J1[Redis Pipeline Batch Operations]
+    J1 --> K1[SAdd + SCard + Expire Correlation Analysis]
+    K1 --> L1[Threshold Decision: count > threshold * 1.5]
+    L1 --> M1[Generate localFlags, localScore]
+    M1 --> N1[mu.Lock Safe Result Merge]
     
-    I -->|No| O[Geographic Behavior Detection]
-    J -->|No| O
-    K -->|No| O
-    L --> O
-    M --> O
-    N --> O
+    I2 -->|No| J2[return nil Skip Detection]
+    I2 -->|Yes| K2[net.ParseIP Address Parsing]
+    K2 --> L2[GeoIP2 Country Query]
+    L2 --> M2[Redis LPUSH Location History]
+    M2 --> N2[Analyze 1-Hour Location Changes]
+    N2 --> O2[Detect Geo Hopping/Switching/Rapid Change]
+    O2 --> P2[mu.Lock Safe Result Merge]
+    J2 --> P2
     
-    O --> P{GeoIP Detector Available?}
-    P -->|No| Q[Skip Geo Detection]
-    P -->|Yes| R[Get IP Geolocation Data]
+    I3 --> J3[Calculate Request Time Intervals]
+    J3 --> K3[Statistical Analysis: Average, Variance]
+    K3 --> L3[Detect Regularity, Frequent Requests, Extreme Patterns]
+    L3 --> M3[Session Duration Tiered Detection]
+    M3 --> N3[mu.Lock Safe Result Merge]
     
-    R --> S[Write Location History to Redis]
-    S --> T[Analyze 1h Location Changes]
+    I4 --> J4[Redis SADD Fingerprint-Session Association]
+    J4 --> K4[Redis SCARD Count Session Numbers]
+    K4 --> L4{sessionCount > 2?}
+    L4 -->|Yes| M4[Mark fp_multi_session]
+    L4 -->|No| N4[No Anomaly Marked]
+    M4 --> O4[mu.Lock Safe Result Merge]
+    N4 --> O4
     
-    T --> U{More than 4 Countries in 1h?}
-    T --> V{Frequent Country Switching?}
-    T --> W{Abnormal Quick Location Changes?}
+    N1 --> Q[wg.Done Completion Notification]
+    P2 --> Q
+    N3 --> Q
+    O4 --> Q
     
-    U -->|Yes| X[+15pts Geographic Jump Anomaly]
-    V -->|Yes| Y[+20pts Frequent Country Switch]
-    W -->|Yes| Z[+25pts Rapid Geo Change Anomaly]
+    Q --> R[wg.Wait All Goroutines Complete]
+    R --> S[close errChan Error Channel]
+    S --> T[range errChan Check Errors]
+    T --> U{Any Errors?}
+    U -->|Yes| KK
+    U -->|No| W[calcScore Calculate Final Risk]
     
-    Q --> AA[Time Pattern Detection]
-    U -->|No| AA
-    V -->|No| AA
-    W -->|No| AA
-    X --> AA
-    Y --> AA
-    Z --> AA
+    W --> X[Combination Risk Detection: Detail > 4]
+    X --> Y[math.Min Score Cap at 100]
+    Y --> Z{totalRisk > 100?}
+    Z -->|Yes| AA[Manager.Block.Add Auto Block]
+    Z -->|No| BB[Risk Level Classification]
     
-    AA --> BB[Get Last Request Timestamp]
-    BB --> CC[Calculate Request Interval]
-    CC --> DD[Analyze Interval Patterns]
+    AA --> CC[IsBlock: true]
     
-    DD --> EE{Too Regular Intervals?}
-    DD --> FF{Session Duration > 2h?}
+    BB --> DD[Build ScoreItem Structure]
+    DD --> EE[IsBlock: totalRisk >= 100]
+    EE --> FF[IsSuspicious: totalRisk >= ScoreSuspicious]
+    FF --> GG[IsDangerous: totalRisk >= ScoreDangerous]
+    GG --> HH[Flag: combinedFlags]
+    HH --> II[Score: totalRisk]
+    II --> JJ[Detail: combinedScore.Detail]
     
-    EE -->|Yes| GG[+25pts Regular Bot Pattern]
-    FF -->|Yes| HH[+15pts Long Session Anomaly]
+    JJ --> KK[Return Complete ScoreItem]:::success
+    CC --> KK
     
-    EE -->|No| II[Device Fingerprint Correlation]
-    FF -->|No| II
-    GG --> II
-    HH --> II
-    
-    II --> JJ[Check Multi-Session Same Fingerprint]
-    JJ --> KK{Fingerprint Sessions > 2?}
-    KK -->|Yes| LL[+25pts Multi-Session Fingerprint]
-    KK -->|No| MM[Calculate Total Risk Score]
-    LL --> MM
-    
-    MM --> NN{Anomaly Types > 4?}
-    NN -->|Yes| OO[+25pts Multi-Anomaly Weight]
-    NN -->|No| PP[Cap Risk Score at 100]
-    OO --> PP
-    
-    PP --> QQ[Write Results to Redis]
-    QQ --> RR{Anomalies OR Risk Score > 50?}
-    
-    RR -->|Yes| SS[IsSuspicious = true]
-    RR -->|No| TT[IsSuspicious = false]
-    
-    SS --> UU[Return DetectionResult]
-    TT --> UU
-    
-    subgraph "Basic Correlation Pattern Detection (Redis Pipeline)"
-        E
-        F
-        G
-        H
-        I
-        J
-        K
+    subgraph "Parallel Goroutine Execution Groups"
+        subgraph "calcBasic: Basic Correlation Detection"
+            I1
+            J1
+            K1
+            L1
+            M1
+            N1
+        end
+        
+        subgraph "calcGeo: Geographic Location Analysis"
+            I2
+            J2
+            K2
+            L2
+            M2
+            N2
+            O2
+            P2
+        end
+        
+        subgraph "calcBehavior: Time Pattern Analysis"
+            I3
+            J3
+            K3
+            L3
+            M3
+            N3
+        end
+        
+        subgraph "calcFingerprint: Fingerprint Correlation"
+            I4
+            J4
+            K4
+            L4
+            M4
+            N4
+            O4
+        end
     end
     
-    subgraph "Geographic Behavior Detection (GeoIP)"
+    subgraph "Synchronization Control & Error Handling"
+        Q
         R
         S
         T
         U
-        V
-        W
     end
     
-    subgraph "Time Pattern Detection (Interval Analysis)"
+    subgraph "Final Risk Assessment & Result Construction"
+        W
+        X
+        Y
+        Z
+        AA
         BB
         CC
         DD
         EE
         FF
-    end
-    
-    subgraph "Device Fingerprint Correlation (Session Track)"
+        GG
+        HH
+        II
         JJ
         KK
     end
     
-    subgraph "Risk Assessment & Result"
-        MM
-        NN
-        QQ
-        RR
+    classDef success fill:#2ecc71,stroke:#27ae60,color:#ffffff
+    
+    class I1,I2,I3,I4 parallel
+    class Q,R,S,T sync
+    class J1,J3,J4,K1,K2,K3,K4 calc
+```
+
+## Risk Determination
+
+```mermaid
+flowchart TD
+
+    B[Get IP & Risk Score] --> C{Check Risk Threshold}
+    
+    C -->|"Risk Score > level_risk_score"| REJECT
+    C -->|"Risk Score ≤ level_risk_score"| D[Check Requests Per Minute]
+    
+    D --> E{Requests Per Minute Check}
+    E -->|"≤ max_request_limit/min"| ALLOW
+    E -->|"> max_request_limit/min"| G[Check If Already in Blocklist]
+    
+    G --> H{Already Blocked?}
+    
+    H -->|"No"| I[Create First Block Record]
+    H -->|"Yes"| J[Update Existing Block Record]
+    
+
+    subgraph "Repeated Requests"
+      J --> L[Increment Block Count]
+      L --> M[Calculate New Block Time]
+      M --> N[Exponential Growth Block Time]
+      N --> O{Block Time > max_block_time}
+      O -->|"Yes"| P[Set Maximum Block Time max_block_time]
+      O -->|"No"| Q[Update Block Time]
     end
+
+      I --> K[Set 1 Hour Block]
+    
+    K --> R[Update Block Record]
+    P --> R
+    Q --> R
+    
+    R --> S[Check Block Count in 24 Hours]
+    S --> T{Block Count ≥ max_block_limit}
+    
+    T -->|"No"| REJECT
+    T -->|"Yes"| Y
+    
+    subgraph "Add to Permanent Blacklist"
+      Y[Create Blacklist Record] --> AA[Set Add Time & Reason]
+      AA --> BB[Sync to Redis & Local File - Persistence]
+    end
+    
+    BB --> CC{Check Email Configuration}
+    CC -->|"Configured"| FF[Send Alert Email]
+    CC -->|"Not Configured"| REJECT
+
+      FF --> REJECT
+    
+    subgraph "Results"
+      ALLOW[Request Allowed]:::success
+      REJECT[Request Rejected]:::danger
+    end
+    
+    classDef success fill:#2ecc71,stroke:#27ae60,color:#ffffff
+    classDef danger fill:#e74c3c,stroke:#c0392b,color:#ffffff
 ```
