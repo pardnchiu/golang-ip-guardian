@@ -5,36 +5,29 @@
 ```mermaid
 flowchart TD
   A["HTTP Request Reception"] --> V1{"IP Format & Header Validation"}
-  V1 -->|"Invalid Format"| Y["Request Denied"]:::danger
+  V1 -->|"Invalid Format"| Y["Request Rejected"]:::danger
   V1 -->|"Missing Headers"| Y
   V1 -->|"Validation Passed"| DEVICE_INFO["Device Fingerprint & Session Management"]:::module
   
   DEVICE_INFO --> L{"IP Category Classification"}
   L -->|"Block List Match"| BT["Block Status Check"]
-  L -->|"Internal Network Unmarked"| DYNAMIC_SCORE
-  L -->|"External Network Unmarked"| T_TOKEN{"AbuseIPDB Token Check"}
+  L -->|"Internal Network Unlabeled"| DYNAMIC_SCORE
+  L -->|"External Network Unlabeled"| ABUSE_CHECK["AbuseIPDB Threat Intelligence Check"]:::module
   L -->|"Whitelist Match"| Z_ALLOW["Request Allowed"]:::success
   L -->|"Blacklist Match"| Y
   
-  BT --> BD{"Request Frequency Assessment"}
+  BT --> BD{"Request Frequency Evaluation"}
   BD -->|"Normal Frequency"| BF["Block Time Extension (Exponential)"] --> Y
   BD -->|"Abnormal Frequency"| Y
   
-  T_TOKEN -->|"Token Missing"| DYNAMIC_SCORE
-  T_TOKEN -->|"Token Exists"| D{"AbuseIPDB Cache Check"}
-  D -->|"Cache Hit"| E1{"IP Reputation Check"}
-  D -->|"Cache Miss"| F_API["AbuseIPDB API Query & Cache Update (24h)"]
-  F_API --> M_API{"API Response Status"}
-  M_API -->|"Query Failed"| DYNAMIC_SCORE
-  M_API -->|"Query Success"| E1
+  ABUSE_CHECK -->|"Malicious IP Confirmed"| Y
+  ABUSE_CHECK -->|"Normal Reputation"| DYNAMIC_SCORE
+  ABUSE_CHECK -->|"Check Failed/No Token"| DYNAMIC_SCORE
   
-  E1 -->|"Malicious IP"| Y
-  E1 -->|"Normal Reputation"| DYNAMIC_SCORE["Multi-Dimensional Suspicious Activity Detection"]:::module
-  
-  DYNAMIC_SCORE --> SECURE_RESULT["Comprehensive Security Assessment"]:::module
+  DYNAMIC_SCORE["Multi-dimensional Suspicious Activity Detection"]:::module --> SECURE_RESULT["Comprehensive Security Assessment & Risk Determination"]:::module
   
   SECURE_RESULT -->|"Security Check Passed"| Z_ALLOW
-  SECURE_RESULT -->|"Risk Above Threshold"| Y
+  SECURE_RESULT -->|"Risk Exceeds Threshold"| Y
   
   classDef success fill:#2ecc71,stroke:#27ae60,color:#ffffff
   classDef danger fill:#e74c3c,stroke:#c0392b,color:#ffffff
@@ -156,6 +149,32 @@ graph TD
         PP
         QQ
     end
+```
+
+### AbuseIPDB Check
+
+```mermaid
+flowchart TD
+  START["External IP"] --> TOKEN{"AbuseIPDB Token Check"}
+  
+  TOKEN -->|"Token Not Found"| NO_TOKEN["Skip Threat Intelligence Check"]
+  TOKEN -->|"Token Found"| CACHE{"AbuseIPDB Cache Check"}
+  
+  CACHE -->|"Cache Hit"| REPUTATION{"IP Reputation Validation"}
+  CACHE -->|"Cache Miss"| API_QUERY["AbuseIPDB API Query & Cache Update (24h)"]
+  
+  API_QUERY --> API_STATUS{"API Response Status"}
+  API_STATUS -->|"Query Failed"| API_FAIL["API Query Failed"]
+  API_STATUS -->|"Query Successful"| REPUTATION
+  
+  REPUTATION -->|"Malicious IP Confirmed"| MALICIOUS["Mark as Threat IP"]
+  REPUTATION -->|"Normal Reputation"| CLEAN["Mark as Clean IP"]
+  
+  NO_TOKEN --> SKIP["Skip Check Result"]
+  API_FAIL --> SKIP
+  MALICIOUS --> RESULT["Return Check Result"]
+  CLEAN --> RESULT
+  SKIP --> RESULT
 ```
 
 ## Dynamic Score
@@ -282,4 +301,50 @@ graph TD
         QQ
         RR
     end
+```
+
+## Risk Determination
+
+```mermaid
+flowchart TD
+    A[Start Security Check] --> B[Get Risk Score & Device Info]
+    B --> C{Check Risk Threshold}
+    
+    C -->|"Risk Score > 50"| REJECT[Reject Request - Risk Score Exceeds Threshold]:::danger
+    C -->|"Risk Score ≤ 50"| D[Check Requests Per Minute]
+    
+    D --> E{Requests Per Minute Check}
+    E -->|"≤ 60 req/min"| ALLOW[Pass Security Check]:::success
+    E -->|"> 60 req/min"| F[Check Block Threshold]
+    
+    F --> G{Block Count Check}
+    G -->|"< ? times/1min"| H[Set Temporary Block]
+    G -->|"≥ ? times/1min"| I[Add to Permanent Blacklist]
+    
+    H --> J[Check Existing Block Records]
+    J --> K{Already Blocked?}
+    K -->|"Yes"| L[Extend Block Time - Exponential Growth]
+    K -->|"No"| M[First Block - 1 Hour]
+    
+    L --> N[Calculate New Block Time]
+    N --> O{New Time > 30 Days?}
+    O -->|"Yes"| P[Set Maximum 30-Day Block]
+    O -->|"No"| Q[Set Double Block Time]
+    
+    P --> TEMP_BLOCK[Temporary Block Complete]:::warning
+    Q --> TEMP_BLOCK
+    M --> TEMP_BLOCK
+    
+    I --> R[Add to Redis Blacklist]
+    R --> T[Add to Local JSON Blacklist - Persistent]
+    T --> U{Check Email Configuration}
+    
+    U -->|"Email Configured"| V[Send Email Notification]
+    U -->|"No Email Config"| BLACKLIST_DONE[Permanent Blacklist Complete]:::danger
+    
+    V --> X[Send Alert Email]
+    X --> Y{Email Send Status}
+    Y -->|"Success"| BLACKLIST_DONE
+    Y -->|"Failed"| Z[Log Error but Continue]
+    Z --> BLACKLIST_DONE
 ```
