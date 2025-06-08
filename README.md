@@ -1,8 +1,11 @@
-# IP Guardian - IP 安全、限流與自動封鎖
+# (未完成) IP Guardian - IP 安全、限流與自動封鎖
+> IP Guardian 是一個高效能的 Go 語言 IP 安全防護系統，提供即時威脅偵測、動態風險評分、設備指紋識別等多層安全防護機制。系統採用 Redis 作為高速快取層，支援併發處理與自動化威脅回應。
 
-## 概述
+[![version](https://img.shields.io/github/v/tag/pardnchiu/golang-ip-guardian)](https://github.com/pardnchiu/golang-ip-guardian/releases)
 
-IP Guardian 是一個高效能的 Go 語言 IP 安全防護系統，提供即時威脅偵測、動態風險評分、設備指紋識別等多層安全防護機制。系統採用 Redis 作為高速快取層，支援併發處理與自動化威脅回應。
+## 待處理項目
+- AbuseIPDB 驗證
+- Geo 驗證
 
 ## 主要特色
 
@@ -421,56 +424,32 @@ graph TD
 
 ### 配置介紹
 
+#### 可用參數
 ```go
-config := &golangIPGuardian.Config{
-    Redis: golangIPGuardian.Redis{
-        Host:     "redis-cluster.example.com",
-        Port:     6379,
-        Password: "your-redis-password",
-        DB:       1,
-    },
-    Email: &golangIPGuardian.EmailConfig{
-        Host:     "smtp.gmail.com",
-        Port:     587,
-        Username: "your-email@example.com",
-        Password: "your-app-password",
-        From:     "security@your-domain.com",
-        To:       []string{"admin@your-domain.com"},
-    },
-    Log: golangIPGuardian.LogConfig{
-        Path:    "/var/log/ipguardian",
-        Stdout:  false,
-        MaxSize: 100 * 1024 * 1024, // 100MB
-    },
-    Parameter: golangIPGuardian.Parameter{
-        // 阻擋策略
-        BlockToBan:             5,           // 5次阻擋後永久封鎖
-        BlockTimeMin:           1800,        // 30分鐘起始阻擋
-        BlockTimeMax:           86400 * 7,   // 7天最大阻擋
-        
-        // 流量限制
-        RateLimitNormal:        200,         // 正常用戶 200 req/min
-        RateLimitSuspicious:    50,          // 可疑用戶 50 req/min
-        RateLimitDangerous:     10,          // 危險用戶 10 req/min
-        
-        // 關聯限制
-        SessionMultiIP:         3,           // 單一 Session 最多 3 個 IP
-        IPMultiDevice:          5,           // 單一 IP 最多 5 個設備
-        DeviceMultiIP:          2,           // 單一設備最多 2 個 IP
-        
-        // 風險評分
-        ScoreNormal:            0,
-        ScoreSuspicious:        40,          // 降低可疑閾值
-        ScoreDangerous:         70,          // 降低危險閾值
-        ScoreSessionMultiIP:    20,
-        ScoreIPMultiDevice:     25,
-        ScoreDeviceMultiIP:     15,
-        ScoreFpMultiSession:    30,
-        ScoreGeoHopping:        20,
-        ScoreGeoFrequentSwitch: 25,
-        ScoreGeoRapidChange:    30,
-        ScoreLongConnection:    10,
-        ScoreIntervalRequest:   15,
-    },
+type Parameter struct {
+	BlockToBan             int `json:"block_to_ban"`              // 封鎖到禁止的次數
+	BlockTimeMin           int `json:"block_time_min"`            // 最小封鎖時間（秒）
+	BlockTimeMax           int `json:"block_time_max"`            // 最大限制時間（秒）
+	RateLimitNormal        int `json:"rate_limit_normal"`         // 正常請求速率限制
+	RateLimitSuspicious    int `json:"rate_limit_suspicious"`     // 可疑請求速率限制
+	RateLimitDangerous     int `json:"rate_limit_dangerous"`      // 危險請求速率限制
+	SessionMultiIP         int `json:"session_multi_ip"`          // 單一 Session 允許的最大 IP 數
+	IPMultiDevice          int `json:"ip_multi_device"`           // 單一 IP 允許的最大設備數
+	DeviceMultiIP          int `json:"device_multi_ip"`           // 單一設備允許的最大 IP 數
+	LoginFailure           int `json:"login_failure"`             // 單一 Session 允許的最大登入失敗次數
+	NotFound404            int `json:"not_found_404"`             // 單一 Session 允許的最大 404 請求數
+	ScoreNormal            int `json:"score_normal"`              // 正常請求的風險分數
+	ScoreSuspicious        int `json:"score_suspicious"`          // 可疑請求的風險分數
+	ScoreDangerous         int `json:"score_dangerous"`           // 危險請求的風險分數
+	ScoreSessionMultiIP    int `json:"score_session_multi_ip"`    // 單一 Session 允許的最大 IP 數可疑分數
+	ScoreIPMultiDevice     int `json:"score_ip_multi_device"`     // 單一 IP 允許的最大設備數可疑分數
+	ScoreDeviceMultiIP     int `json:"score_device_multi_ip"`     // 單一設備允許的最大 IP 數可疑分數
+	ScoreFpMultiSession    int `json:"score_fp_multi_session"`    // 單一指紋允許的最大 Session 數可疑分數
+	ScoreGeoHopping        int `json:"score_geo_hopping"`         // 地理位置跳躍可疑分數
+	ScoreGeoFrequentSwitch int `json:"score_geo_frequent_switch"` // 地理位置頻繁切換可疑分數
+	ScoreGeoRapidChange    int `json:"score_geo_rapid_change"`    // 地理位置快速變化可疑分數
+	ScoreIntervalRequest   int `json:"score_interval_request"`    // 短時間內的請求數可疑分數
+	ScoreFrequencyRequest  int `json:"score_frequency_request"`   // 請求頻率可疑分數
+	ScoreLongConnection    int `json:"score_long_connection"`     // 長連接可疑分數
 }
 ```
