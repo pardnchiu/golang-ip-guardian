@@ -1,4 +1,4 @@
-# IP Guardian - Enterprise-Grade IP Security Protection System
+# IP Guardian - IP security protection
 
 > IP Guardian is a high-performance IP security protection system developed in Go, providing real-time threat detection, dynamic risk scoring, device fingerprinting, and multi-layered security mechanisms. The system uses Redis as a high-speed cache layer, supporting concurrent processing and automated threat response.
 
