@@ -1,10 +1,10 @@
-# IP Guardian - IP security protection
+# IP Guardian (Golang)
 
-> IP Guardian is a high-performance IP security protection system developed in Go, providing real-time threat detection, dynamic risk scoring, device fingerprinting, and multi-layered security mechanisms. The system uses Redis as a high-speed cache layer, supporting concurrent processing and automated threat response.
+> IP Guardian is a IP security protection package for Golang, providing real-time threat detection, dynamic risk scoring, device fingerprinting, and multi-layered security mechanisms. The system uses Redis as a high-speed cache layer, supporting concurrent processing and automated threat response.
 
 [![version](https://img.shields.io/github/v/tag/pardnchiu/golang-ip-guardian)](https://github.com/pardnchiu/golang-ip-guardian/releases)
 
-## Key Features
+## Feature
 
 ### Multi-Layered Security Protection
 - **Whitelist Management**: Trusted list automatically bypasses security checks with file synchronization
@@ -272,8 +272,7 @@ guardian.NotFound404(w, r)
 
 ## System Architecture
 
-<details>
-<summary>Main Flow</summary>
+### Main Flow
 
 ```mermaid
 graph TD
@@ -314,10 +313,7 @@ graph TD
  classDef danger fill: #e74c3c,stroke: #c0392b,color: #ffffff
 ```
 
-</details>
-
-<details>
-<summary>Device Info</summary>
+### Device Info
 
 ```mermaid
 graph TD
@@ -471,10 +467,7 @@ graph TD
   class II,JJ,UU,VV crypto
 ```
 
-</details>
-
-<details>
-<summary>AbuseIPDB (Not Implemented)</summary>
+### AbuseIPDB (Not Implemented)
 
 ```mermaid
 flowchart TD
@@ -500,10 +493,7 @@ flowchart TD
   SKIP --> RESULT
 ```
 
-</details>
-
-<details>
-<summary>Dynamic Scoring</summary>
+### Dynamic Scoring
 
 ```mermaid
 graph TD
@@ -651,8 +641,6 @@ graph TD
   class Q,R,S,T sync
   class J1,J3,J4,K1,K2,K3,K4 calc
 ```
-
-</details>
 
 ## License
 
