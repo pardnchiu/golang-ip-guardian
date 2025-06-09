@@ -1,77 +1,314 @@
-# (未完成) IP Guardian - IP 安全、限流與自動封鎖
-> IP Guardian 是一個高效能的 Go 語言 IP 安全防護系統，提供即時威脅偵測、動態風險評分、設備指紋識別等多層安全防護機制。系統採用 Redis 作為高速快取層，支援併發處理與自動化威脅回應。
+# IP Guardian - Enterprise-Grade IP Security Protection System
+
+> IP Guardian is a high-performance IP security protection system developed in Go, providing real-time threat detection, dynamic risk scoring, device fingerprinting, and multi-layered security mechanisms. The system uses Redis as a high-speed cache layer, supporting concurrent processing and automated threat response.
 
 [![version](https://img.shields.io/github/v/tag/pardnchiu/golang-ip-guardian)](https://github.com/pardnchiu/golang-ip-guardian/releases)
 
-## 待處理項目
-- AbuseIPDB 驗證
-- Geo 驗證
+## Key Features
 
-## 主要特色
+### Multi-Layered Security Protection
+- **Whitelist Management**: Trusted list automatically bypasses security checks with file synchronization
+- **Blacklist System**: Permanently blocks malicious IPs with integrated email notifications
+- **Dynamic Blocking**: Temporarily blocks suspicious activities with exponential time growth
+- **Auto-Escalation**: Repeated blocks automatically escalate to permanent bans
 
-### 多層安全防護
-- **白名單管理**: 信任清單自動跳過安全檢查
-- **黑名單系統**: 永久封鎖惡意 IP 位址
-- **動態阻擋**: 臨時封鎖可疑活動，支援指數級時間增長
-- **自動升級**: 重複阻擋自動升級至永久封鎖
+### Intelligent Threat Detection
+- **Device Fingerprinting**: SHA256-encrypted unique device identification with 365-day tracking
+- **Behavioral Analysis**: Request patterns, time intervals, and session tracking
+- **Geolocation Monitoring**: Cross-country jumping, rapid location changes, high-risk region detection
+- **Correlation Analysis**: Multi-device, multi-IP, multi-session anomaly detection
+- **Login Behavior**: Login failure count and 404 error frequency monitoring
 
-### 智慧威脅偵測
-- **設備指紋**: SHA256 加密的唯一設備識別
-- **行為分析**: 請求模式、時間間隔、工作階段追蹤
-- **地理位置監控**: 跨國跳躍、快速位置變更偵測
-- **關聯分析**: 多設備、多 IP、多工作階段異常偵測
+### High-Performance Architecture
+- **Concurrent Processing**: Parallel risk assessment with 4 simultaneous Goroutines
+- **Redis Caching**: Millisecond-level query response with 24-hour geolocation cache
+- **Pipeline Batching**: Reduced network latency with optimized Redis operations
+- **Memory Optimization**: Local cache and Redis dual-layer architecture
+- **HMAC Signatures**: Secure session ID validation
 
-### 高效能架構
-- **併發處理**: 並行風險評估
-- **Redis 快取**: 毫秒級查詢回應
-- **Pipeline 批次**: 減少網路延遲
-- **記憶體最佳化**: 本地快取與 Redis 雙層架構
+### Dynamic Scoring System
+- **Real-time Calculation**: Multi-dimensional risk factor parallel computation
+- **Adaptive Adjustment**: Dynamic rate limiting based on threat levels
+- **Threshold Management**: Suspicious, dangerous, and blocking three-tier classification
+- **Auto Rate Limiting**: Normal(100), Suspicious(50), Dangerous(20) three-tier limits
 
-### 動態評分系統
-- **即時計算**: 基於多維度風險因子
-- **自適應調整**: 根據威脅等級動態限流
-- **閾值管理**: 可疑、危險、阻擋三級分類
-- **自動限流**: 正常、可疑、危險三級限流
+## System Architecture
 
-## 系統架構
+### Core Components
+
+#### IPGuardian Main Instance
+- Manages Redis connections, logging, and configuration parameters
+- Coordinates Trust, Ban, and Block sub-managers
+- Provides device checking and risk scoring functionality
+- Supports GeoLite2 geolocation detection
+
+#### Trust Manager (Whitelist)
+- Maintains trusted IP list
+- Supports memory cache and Redis persistence
+- File synchronization to `trust_list.json`
+- Supports tag-based categorization
+
+#### Ban Manager (Blacklist)
+- Manages permanently blocked IP addresses
+- Provides SMTP email notification functionality
+- File synchronization to `ban_list.json`
+- Records blocking reasons and timestamps
+
+#### Block Manager (Temporary Blocking)
+- Implements exponential growth blocking time mechanism (1<<count)
+- Automatic blocking count tracking
+- Auto-transfers to blacklist when threshold exceeded
+- Supports maximum blocking time limits
+
+### Device Detection Mechanism
+
+#### IP Resolution Mechanism
+Supports multiple Proxy Header checks in priority order:
+1. `CF-Connecting-IP` (Cloudflare)
+2. `X-Forwarded-For` (Standard reverse proxy)
+3. `X-Real-IP` (Nginx)
+4. `X-Client-IP` (Apache)
+5. `X-Cluster-Client-IP` (Cluster)
+6. `X-Forwarded`, `Forwarded-For`, `Forwarded`
+
+Automatically identifies internal/external IPs, supporting these internal ranges:
+- `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`
+- `127.0.0.0/8`, `169.254.0.0/16`
+- `::1/128`, `fc00::/7`
+
+#### Device Fingerprint Identification
+- SHA256 fingerprint based on Platform/Browser/OS/128-character UUID
+- HMAC-SHA256 signed Session ID
+- HttpOnly Secure Cookie protection against XSS attacks
+- Supports SameSite=Strict mode
+
+### Risk Scoring System
+
+#### Basic Checks (calcBasic)
+- **Session Multi-IP Check**: Single session using multiple IPs
+- **IP Multi-Device Check**: Single IP corresponding to multiple device fingerprints
+- **Device Multi-IP Check**: Single device using multiple IPs
+- **Login Failure Monitoring**: Records failure count, triggers risk when threshold exceeded
+- **404 Error Tracking**: Monitors abnormal path probing behavior
+
+#### Geolocation Analysis (calcGeo)
+- **High-Risk Countries**: Configurable high-risk region list
+- **Geographic Jumping**: More than 4 countries within 1 hour triggers alert
+- **Frequent Switching**: City switching more than 4 times within 1 hour
+- **Rapid Changes**: Movement speed exceeding 800 km/h or crossing 500 km within 30 minutes
+- **Distance Calculation**: Uses Haversine formula to calculate Earth surface distance
+
+#### Behavioral Analysis (calcBehavior)
+- **Request Interval Regularity Detection**: Variance < 1000 with regular intervals
+- **Long Connection Time Monitoring**: Tiered alerts for exceeding 1/2/4 hours
+- **Frequent Request Pattern Recognition**: More than 16 requests within 500ms
+- **Extreme Regularity Detection**: Variance < 100 with samples ≥ 8
+
+#### Fingerprint Analysis (calcFingerprint)
+- **Same Fingerprint Multi-Session Detection**: Single fingerprint with more than 2 sessions within 1 minute
+- **Minute-Level Statistics Protection**: Uses timestamp segmentation to avoid false positives
+
+### Middleware Integration
+
+#### Gin Framework
+```go
+router.Use(guardian.GinMiddleware())
+```
+- Automatic JSON error responses
+- Complete HTTP status code support
+- Supports `c.Abort()` request interruption
+
+#### Standard HTTP
+```go
+http.Handle("/", guardian.HTTPMiddleware(yourHandler))
+```
+- Handler wrapper pattern
+- Standard HTTP response format
+- Complete error handling mechanism
+
+## Configuration Parameters
+
+### File Path Configuration
+```go
+type Filepath struct {
+  CityDB    string `json:"city_db"`    // GeoLite2-City.mmdb
+  CountryDB string `json:"country_db"` // GeoLite2-Country.mmdb
+  TrustList string `json:"trust_list"` // trust_list.json
+  BanList   string `json:"ban_list"`   // ban_list.json
+}
+```
+
+### Core Parameters
+
+```go
+type Parameter struct {
+  HighRiskCountry        []string `json:"high_risk_country"`         // High-risk country list
+  BlockToBan             int      `json:"block_to_ban"`              // Block to ban threshold count
+  BlockTimeMin           int      `json:"block_time_min"`            // Minimum block time (seconds)
+  BlockTimeMax           int      `json:"block_time_max"`            // Maximum block time (seconds)
+  RateLimitNormal        int      `json:"rate_limit_normal"`         // Normal request rate limit
+  RateLimitSuspicious    int      `json:"rate_limit_suspicious"`     // Suspicious request rate limit
+  RateLimitDangerous     int      `json:"rate_limit_dangerous"`      // Dangerous request rate limit
+  SessionMultiIP         int      `json:"session_multi_ip"`          // Max IPs per session
+  IPMultiDevice          int      `json:"ip_multi_device"`           // Max devices per IP
+  DeviceMultiIP          int      `json:"device_multi_ip"`           // Max IPs per device
+  LoginFailure           int      `json:"login_failure"`             // Max login failures per session
+  NotFound404            int      `json:"not_found_404"`             // Max 404 requests per session
+  ScoreNormal            int      `json:"score_normal"`              // Normal request risk score
+  ScoreSuspicious        int      `json:"score_suspicious"`          // Suspicious request threshold
+  ScoreDangerous         int      `json:"score_dangerous"`           // Dangerous request threshold
+  ScoreSessionMultiIP    int      `json:"score_session_multi_ip"`    // Session multi-IP risk score
+  ScoreIPMultiDevice     int      `json:"score_ip_multi_device"`     // IP multi-device risk score
+  ScoreDeviceMultiIP     int      `json:"score_device_multi_ip"`     // Device multi-IP risk score
+  ScoreFpMultiSession    int      `json:"score_fp_multi_session"`    // Fingerprint multi-session risk score
+  ScoreGeoHighRisk       int      `json:"score_geo_high_risk"`       // High-risk geolocation score
+  ScoreGeoHopping        int      `json:"score_geo_hopping"`         // Geographic hopping score
+  ScoreGeoFrequentSwitch int      `json:"score_geo_frequent_switch"` // Frequent location switch score
+  ScoreGeoRapidChange    int      `json:"score_geo_rapid_change"`    // Rapid location change score
+  ScoreIntervalRequest   int      `json:"score_interval_request"`    // Short interval request score
+  ScoreFrequencyRequest  int      `json:"score_frequency_request"`   // Request frequency score
+  ScoreLongConnection    int      `json:"score_long_connection"`     // Long connection score
+  ScoreLoginFailure      int      `json:"score_login_failure"`       // Login failure score
+  ScoreNotFound404       int      `json:"score_not_found_404"`       // 404 request score
+}
+```
+
+## API Reference
+
+### Public Methods
+
+#### Initialization
+```go
+guardian, err := golangIPGuardian.New(&golangIPGuardian.Config{
+  Redis: golangIPGuardian.Redis{
+    Host: "localhost",
+    Port: 6379,
+  },
+  // Other configurations...
+})
+```
+
+#### Main Check
+```go
+result := guardian.Check(r, w)
+if !result.Success {
+  // Handle blocked requests
+  log.Printf("Request blocked: %s", result.Error)
+}
+```
+
+#### Manual Management
+```go
+// Add to trust list
+guardian.Manager.Trust.Add("192.168.1.100", "Internal server")
+
+// Add to ban list
+guardian.Manager.Ban.Add("1.2.3.4", "Malicious attack")
+
+// Add to block list
+guardian.Manager.Block.Add("5.6.7.8", "Suspicious behavior")
+
+// Record login failure
+guardian.LoginFailure(w, r)
+
+// Record 404 error
+guardian.NotFound404(w, r)
+```
+
+## File Formats
+
+### trust_list.json
+```json
+[
+  {
+  "ip": "192.168.1.100",
+  "tag": "Internal server",
+  "added_at": 1703980800
+  }
+]
+```
+
+### ban_list.json
+```json
+[
+  {
+  "ip": "1.2.3.4",
+  "reason": "Malicious attack",
+  "added_at": 1703980800
+  }
+]
+```
+
+## Performance Features
+
+### Redis Optimization
+- Uses Pipeline batch operations to reduce network latency
+- Automatic expiration time settings to prevent memory leaks
+- Dual-layer cache architecture: Local memory + Redis
+
+### Concurrent Processing
+- 4 Goroutines executing risk assessment in parallel
+- Mutex protection for shared resources
+- Unified error channel for exception handling
+
+### Memory Management
+- Local cache reduces Redis queries
+- Periodic cleanup of expired data
+- Minimized memory allocation
+
+## Security Features
+
+### Session Security
+- HMAC-SHA256 signature verification
+- HttpOnly Cookie prevents XSS
+- SameSite=Strict prevents CSRF
+- 30-day sliding window updates
+
+### Device Tracking
+- SHA256 fingerprint hashing
+- 365-day long-term tracking
+- 128-character random keys
+- Prevents fingerprint spoofing
+
+## System Architecture
 
 <details>
-<summary>主要流程</summary>
+<summary>Main Flow</summary>
 
 ```mermaid
 graph TD
- A[HTTP 請求進入] --> B[開始檢查流程]
- B --> C[呼叫裝置資訊取得裝置資料]
+ A[HTTP Request Entry] --> B[Start Check Process]
+ B --> C[Call Device Info to Get Device Data]
  %% Device Info simplified view
- C --> C1[詳見裝置資訊流程]:::module
- C1 --> D[裝置資訊建立完成]
- D --> D1{裝置資訊成功？}
- D1 -->|失敗| REJECT
+ C --> C1[See Device Info Flow]:::module
+ C1 --> D[Device Info Creation Complete]
+ D --> D1{Device Info Success?}
+ D1 -->|Failed| REJECT
  %% Main validation logic
- D1 -->|成功| E[開始主要驗證流程]
- E --> |白名單| SUCCESS[允許存取]
- E -->|黑名單| REJECT[拒絕請求]
- E -->|阻擋清單| I{超過阻擋至封鎖次數}
- I -->|是| J[加入黑名單並通知開發者]
+ D1 -->|Success| E[Start Main Validation Flow]
+ E --> |Whitelist| SUCCESS[Allow Access]
+ E -->|Blacklist| REJECT[Reject Request]
+ E -->|Block List| I{Exceed Block to Ban Count}
+ I -->|Yes| J[Add to Blacklist and Notify Developer]
  J --> REJECT
- I -->|否| REJECT
- E -->|無標籤| FFF{有 AbuseIPDB Token}
- FFF -->|是| ABUSE[呼叫 AbuseIPDB 取得風險分數]
- ABUSE --> ABUSE1[詳見 AbuseIPDB 檢查流程]:::module
- ABUSE1 --> ABUSE2{是惡意 IP？}
- ABUSE2 -->|是| AD12[加入阻擋清單]
- ABUSE2 -->|否| L[呼叫動態評分進行風險評估]
- FFF -->|否| L
+ I -->|No| REJECT
+ E -->|No Label| FFF{Has AbuseIPDB Token}
+ FFF -->|Yes| ABUSE[Call AbuseIPDB to Get Risk Score]
+ ABUSE --> ABUSE1[See AbuseIPDB Check Flow]:::module
+ ABUSE1 --> ABUSE2{Is Malicious IP?}
+ ABUSE2 -->|Yes| AD12[Add to Block List]
+ ABUSE2 -->|No| L[Call Dynamic Scoring for Risk Assessment]
+ FFF -->|No| L
  %% Dynamic Score simplified view
- L --> L1[詳見動態評分流程]:::module
- L1 --> R1{動態評分成功？}
- R1 -->|失敗| REJECT
- R1 -->|成功| T{達到阻擋分數}
- T -->|是| AD12
+ L --> L1[See Dynamic Scoring Flow]:::module
+ L1 --> R1{Dynamic Scoring Success?}
+ R1 -->|Failed| REJECT
+ R1 -->|Success| T{Reach Block Score}
+ T -->|Yes| AD12
  AD12 --> REJECT
- T -->|否| V{根據風險等級檢查流量限制}
- V -->|否| SUCCESS:::success
- V -->|是| REJECT:::danger
+ T -->|No| V{Check Rate Limit Based on Risk Level}
+ V -->|No| SUCCESS:::success
+ V -->|Yes| REJECT:::danger
  classDef module fill: #3498db,stroke: #2980b9,color: #ffffff
  classDef success fill: #2ecc71,stroke: #27ae60,color: #ffffff
  classDef danger fill: #e74c3c,stroke: #c0392b,color: #ffffff
@@ -80,150 +317,150 @@ graph TD
 </details>
 
 <details>
-<summary>裝置資訊</summary>
+<summary>Device Info</summary>
 
 ```mermaid
 graph TD
-  A[HTTP 請求接收] --> B[getDevice 提取裝置資訊]
+  A[HTTP Request Received] --> B[getDevice Extract Device Info]
   
-  B --> C[r.UserAgent 取得 User-Agent]
-  C --> D[getClientIP IP 位址解析]
+  B --> C[r.UserAgent Get User-Agent]
+  C --> D[getClientIP IP Address Resolution]
   
-  D --> E[檢查代理標頭優先順序]
+  D --> E[Check Proxy Header Priority]
   E --> F1[CF-Connecting-IP Cloudflare]
-  E --> F2[X-Forwarded-For 標準反向代理]
+  E --> F2[X-Forwarded-For Standard Reverse Proxy]
   E --> F3[X-Real-IP Nginx]
   E --> F4[X-Client-IP Apache]
-  E --> F5[其他代理標頭]
+  E --> F5[Other Proxy Headers]
   
-  F1 --> G[解析並驗證 IP 格式]
+  F1 --> G[Parse and Validate IP Format]
   F2 --> G
   F3 --> G
   F4 --> G
   F5 --> G
   
-  G --> H{有效代理 IP？}
-  H -->|否| I[使用 RemoteAddr]
-  H -->|是| J[isInternalIP 內部網路檢查]
+  G --> H{Valid Proxy IP?}
+  H -->|No| I[Use RemoteAddr]
+  H -->|Yes| J[isInternalIP Internal Network Check]
   I --> J
   
-  J --> K[hasProxyHeader 代理標頭檢查]
-  K --> L{有代理標頭？}
-  L -->|是| M[checkProxy 代理鏈驗證]
-  L -->|否| N[直接 IP 內部網路檢查]
+  J --> K[hasProxyHeader Proxy Header Check]
+  K --> L{Has Proxy Header?}
+  L -->|Yes| M[checkProxy Proxy Chain Validation]
+  L -->|No| N[Direct IP Internal Network Check]
   
-  M --> O[isInternalIPRange CIDR 檢查]
+  M --> O[isInternalIPRange CIDR Check]
   N --> O
-  O --> P[設定 isPrivate 和 ipTrustLevel]
+  O --> P[Set isPrivate and ipTrustLevel]
   
-  P --> Q[User-Agent 解析流程]
-  Q --> R[getPlatform 平台識別]
-  R --> S[getBrowser 瀏覽器識別]
-  S --> T[getType 裝置類型識別]
-  T --> U[getOS 作業系統識別]
+  P --> Q[User-Agent Parsing Flow]
+  Q --> R[getPlatform Platform Identification]
+  R --> S[getBrowser Browser Identification]
+  S --> T[getType Device Type Identification]
+  T --> U[getOS Operating System Identification]
   
-  U --> V[建立基礎裝置結構]
-  V --> W[管理器狀態檢查]
-  W --> X[Trust.check 信任清單檢查]
-  X --> Y[Ban.check 封鎖清單檢查]
-  Y --> Z[Block.check 阻擋清單檢查]
+  U --> V[Create Basic Device Structure]
+  V --> W[Manager Status Check]
+  W --> X[Trust.check Trust List Check]
+  X --> Y[Ban.check Block List Check]
+  Y --> Z[Block.check Block List Check]
   
-  Z --> AA[requestCountInMin 分鐘請求次數]
-  AA --> BB[blockCountInHour 小時阻擋次數]
+  Z --> AA[requestCountInMin Minute Request Count]
+  AA --> BB[blockCountInHour Hour Block Count]
   
-  BB --> CC[getSessionID 工作階段管理]
-  CC --> DD{工作階段 Cookie 存在？}
+  BB --> CC[getSessionID Session Management]
+  CC --> DD{Session Cookie Exists?}
   
-  DD -->|是| EE[parseSignedSessionID 解析簽章]
-  EE --> FF{HMAC-SHA256 簽章有效？}
-  FF -->|是| GG[延長 Cookie 30 天]
-  FF -->|否| HH[createSignedSessionID 建立新工作階段]
+  DD -->|Yes| EE[parseSignedSessionID Parse Signature]
+  EE --> FF{HMAC-SHA256 Signature Valid?}
+  FF -->|Yes| GG[Extend Cookie 30 Days]
+  FF -->|No| HH[createSignedSessionID Create New Session]
   
-  DD -->|否| HH
-  HH --> II[generateSessionID 產生 32 字元 ID]
-  II --> JJ[signSessionID HMAC 簽章]
-  JJ --> KK[格式: s:sessionID.signature]
-  KK --> LL[設定 30 天 HttpOnly Cookie]
+  DD -->|No| HH
+  HH --> II[generateSessionID Generate 32 Character ID]
+  II --> JJ[signSessionID HMAC Signature]
+  JJ --> KK[Format: s:sessionID.signature]
+  KK --> LL[Set 30 Day HttpOnly Cookie]
   
-  GG --> MM[getFingerprint 裝置指紋產生]
+  GG --> MM[getFingerprint Device Fingerprint Generation]
   LL --> MM
   
-  MM --> NN{裝置 Cookie 存在？}
-  NN -->|是| OO[讀取現有裝置金鑰]
-  NN -->|否| PP[uuid 產生 128 字元隨機金鑰]
+  MM --> NN{Device Cookie Exists?}
+  NN -->|Yes| OO[Read Existing Device Key]
+  NN -->|No| PP[uuid Generate 128 Character Random Key]
   
-  OO --> QQ[延長 Cookie 365 天]
-  PP --> RR[設定 365 天 HttpOnly Cookie]
+  OO --> QQ[Extend Cookie 365 Days]
+  PP --> RR[Set 365 Day HttpOnly Cookie]
   
-  QQ --> SS[建立指紋資訊字串]
+  QQ --> SS[Create Fingerprint Info String]
   RR --> SS
-  SS --> TT[平台/瀏覽器/類型/作業系統/金鑰]
-  TT --> UU[SHA256 雜湊計算]
-  UU --> VV[hex.EncodeToString 指紋產生]
+  SS --> TT[Platform/Browser/Type/OS/Key]
+  TT --> UU[SHA256 Hash Calculation]
+  UU --> VV[hex.EncodeToString Fingerprint Generation]
   
-  VV --> WW[回傳完整裝置結構]
+  VV --> WW[Return Complete Device Structure]
   
-  subgraph "IP 位址解析與代理偵測"
-    D
-    E
-    F1
-    F2
-    F3
-    F4
-    F5
-    G
-    H
-    I
-    J
-    K
-    L
-    M
-    N
-    O
-    P
+  subgraph "IP Address Resolution & Proxy Detection"
+  D
+  E
+  F1
+  F2
+  F3
+  F4
+  F5
+  G
+  H
+  I
+  J
+  K
+  L
+  M
+  N
+  O
+  P
   end
   
-  subgraph "User-Agent 解析引擎"
-    Q
-    R
-    S
-    T
-    U
+  subgraph "User-Agent Parsing Engine"
+  Q
+  R
+  S
+  T
+  U
   end
   
-  subgraph "安全狀態檢查"
-    W
-    X
-    Y
-    Z
-    AA
-    BB
+  subgraph "Security Status Check"
+  W
+  X
+  Y
+  Z
+  AA
+  BB
   end
   
-  subgraph "工作階段管理（30 天滑動視窗）"
-    CC
-    DD
-    EE
-    FF
-    GG
-    HH
-    II
-    JJ
-    KK
-    LL
+  subgraph "Session Management (30 Day Sliding Window)"
+  CC
+  DD
+  EE
+  FF
+  GG
+  HH
+  II
+  JJ
+  KK
+  LL
   end
   
-  subgraph "裝置指紋追蹤（365 天滑動視窗）"
-    MM
-    NN
-    OO
-    PP
-    QQ
-    RR
-    SS
-    TT
-    UU
-    VV
+  subgraph "Device Fingerprint Tracking (365 Day Sliding Window)"
+  MM
+  NN
+  OO
+  PP
+  QQ
+  RR
+  SS
+  TT
+  UU
+  VV
   end
   
   classDef success fill:#2ecc71,stroke:#27ae60,color:#ffffff
@@ -236,106 +473,101 @@ graph TD
 
 </details>
 
-</details>
-
 <details>
-<summary>AbuseIPDB（未實作）</summary>
+<summary>AbuseIPDB (Not Implemented)</summary>
 
 ```mermaid
 flowchart TD
-  START["外部 IP"] --> TOKEN{"AbuseIPDB Token 檢查"}
+  START["External IP"] --> TOKEN{"AbuseIPDB Token Check"}
   
-  TOKEN -->|"未找到 Token"| NO_TOKEN["跳過威脅情報檢查"]
-  TOKEN -->|"找到 Token"| CACHE{"AbuseIPDB 快取檢查"}
+  TOKEN -->|"Token Not Found"| NO_TOKEN["Skip Threat Intelligence Check"]
+  TOKEN -->|"Token Found"| CACHE{"AbuseIPDB Cache Check"}
   
-  CACHE -->|"快取命中"| REPUTATION{"IP 聲譽驗證"}
-  CACHE -->|"快取未命中"| API_QUERY["AbuseIPDB API 查詢並更新快取（24小時）"]
+  CACHE -->|"Cache Hit"| REPUTATION{"IP Reputation Verification"}
+  CACHE -->|"Cache Miss"| API_QUERY["AbuseIPDB API Query and Update Cache (24 hours)"]
   
-  API_QUERY --> API_STATUS{"API 回應狀態"}
-  API_STATUS -->|"查詢失敗"| API_FAIL["API 查詢失敗"]
-  API_STATUS -->|"查詢成功"| REPUTATION
+  API_QUERY --> API_STATUS{"API Response Status"}
+  API_STATUS -->|"Query Failed"| API_FAIL["API Query Failed"]
+  API_STATUS -->|"Query Success"| REPUTATION
   
-  REPUTATION -->|"確認惡意 IP"| MALICIOUS["標記為威脅 IP"]
-  REPUTATION -->|"正常聲譽"| CLEAN["標記為乾淨 IP"]
+  REPUTATION -->|"Confirmed Malicious IP"| MALICIOUS["Mark as Threat IP"]
+  REPUTATION -->|"Normal Reputation"| CLEAN["Mark as Clean IP"]
   
-  NO_TOKEN --> SKIP["跳過檢查結果"]
+  NO_TOKEN --> SKIP["Skip Check Result"]
   API_FAIL --> SKIP
-  MALICIOUS --> RESULT["回傳檢查結果"]
+  MALICIOUS --> RESULT["Return Check Result"]
   CLEAN --> RESULT
   SKIP --> RESULT
 ```
 
 </details>
 
-</details>
-
 <details>
-<summary>動態評分</summary>
-
+<summary>Dynamic Scoring</summary>
 
 ```mermaid
 graph TD
-  A[開始動態評分計算 dynamicScore] --> B[初始化並行執行環境]
-  B --> C[建立 WaitGroup、Mutex、errChan]
-  C --> D[初始化共享結果: combinedFlags、combinedScore]
+  A[Start Dynamic Score Calculation dynamicScore] --> B[Initialize Parallel Execution Environment]
+  B --> C[Create WaitGroup, Mutex, errChan]
+  C --> D[Initialize Shared Results: combinedFlags, combinedScore]
   
-  D --> E[同時啟動四個 Goroutines]
+  D --> E[Simultaneously Start Four Goroutines]
   
-  E --> |wg.Add| I1[定義 BasicItem 操作矩陣]
-  E --> |wg.Add| I2{GeoChecker 與資料庫可用？}
-  E --> |wg.Add| I3[Redis Pipeline 取得間隔資料]
-  E --> |wg.Add| I4[計算目前分鐘時間戳]
+  E --> |wg.Add| I1[Define BasicItem Operation Matrix]
+  E --> |wg.Add| I2{GeoChecker & Database Available?}
+  E --> |wg.Add| I3[Redis Pipeline Get Interval Data]
+  E --> |wg.Add| I4[Calculate Current Minute Timestamp]
   
-  I1 --> J1[Redis Pipeline 批次操作]
-  J1 --> K1[SAdd + SCard + Expire 關聯分析]
-  K1 --> L1[閾值決策: count > threshold * 1.5]
-  L1 --> M1[產生 localFlags、localScore]
-  M1 --> N1[mu.Lock 安全結果合併]
+  I1 --> J1[Redis Pipeline Batch Operations]
+  J1 --> K1[SAdd + SCard + Expire Correlation Analysis]
+  K1 --> L1[Threshold Decision: count > threshold * 1.5]
+  L1 --> M1[Generate localFlags, localScore]
+  M1 --> N1[mu.Lock Safe Result Merge]
   
-  I2 -->|否| J2[return nil 跳過偵測]
-  I2 -->|是| K2[net.ParseIP 位址解析]
-  K2 --> L2[GeoIP2 國家查詢]
-  L2 --> M2[Redis LPUSH 位置歷史]
-  M2 --> N2[分析 1 小時位置變更]
-  N2 --> O2[偵測地理跳躍/切換/快速變更]
-  O2 --> P2[mu.Lock 安全結果合併]
+  I2 -->|No| J2[return nil Skip Detection]
+  I2 -->|Yes| K2[net.ParseIP Address Resolution]
+  K2 --> L2[GeoIP2 Country Query]
+  L2 --> M2[Redis LPUSH Location History]
+  M2 --> N2[Analyze 1 Hour Location Changes]
+  N2 --> O2[Detect Geographic Jumping/Switching/Rapid Changes]
+  O2 --> P2[mu.Lock Safe Result Merge]
   J2 --> P2
   
-  I3 --> J3[計算請求時間間隔]
-  J3 --> K3[統計分析: 平均值、變異數]
-  K3 --> L3[偵測規律性、頻繁請求、極端模式]
-  L3 --> M3[工作階段持續時間分層偵測]
-  M3 --> N3[mu.Lock 安全結果合併]
+  I3 --> J3[Calculate Request Time Intervals]
+  J3 --> K3[Statistical Analysis: Mean, Variance]
+  K3 --> L3[Detect Regularity, Frequent Requests, Extreme Patterns]
+  L3 --> M3[Session Duration Layered Detection]
+  M3 --> N3[mu.Lock Safe Result Merge]
   
-  I4 --> J4[Redis SADD 指紋-工作階段關聯]
-  J4 --> K4[Redis SCARD 計算工作階段數量]
-  K4 --> L4{sessionCount > 2？}
-  L4 -->|是| M4[標記 fp_multi_session]
-  L4 -->|否| N4[無異常標記]
-  M4 --> O4[mu.Lock 安全結果合併]
+  I4 --> J4[Redis SADD Fingerprint-Session Association]
+  J4 --> K4[Redis SCARD Calculate Session Count]
+  K4 --> L4{sessionCount > 2?}
+  L4 -->|Yes| M4[Mark fp_multi_session]
+  L4 -->|No| N4[No Anomaly Mark]
+  M4 --> O4[mu.Lock Safe Result Merge]
   N4 --> O4
   
-  N1 --> Q[wg.Done 完成通知]
+  N1 --> Q[wg.Done Completion Notification]
   P2 --> Q
   N3 --> Q
   O4 --> Q
   
-  Q --> R[wg.Wait 所有 Goroutines 完成]
-  R --> S[close errChan 錯誤通道]
-  S --> T[range errChan 檢查錯誤]
-  T --> U{有錯誤？}
-  U -->|是| KK
-  U -->|否| W[calcScore 計算最終風險]
+  Q --> R[wg.Wait All Goroutines Complete]
+  R --> S[close errChan Error Channel]
+  S --> T[range errChan Check Errors]
+  T --> U{Any Errors?}
+  U -->|Yes| KK
+  U -->|No| W[calcScore Calculate Final Risk]
   
-  W --> X[組合風險偵測: Detail > 4]
-  X --> Y[math.Min 分數上限為 100]
-  Y --> Z{totalRisk > 100？}
-  Z -->|是| AA[Manager.Block.Add 自動阻擋]
-  Z -->|否| BB[風險等級分類]
+  W --> X[Combined Risk Detection: Detail > 4]
+  X --> Y[math.Min Score Cap at 100]
+  Y --> Z{totalRisk > 100?}
+  Z -->|Yes| AA[Manager.Block.Add Auto Block]
+  Z -->|No| BB[Risk Level Classification]
   
   AA --> CC[IsBlock: true]
   
-  BB --> DD[建立 ScoreItem 結構]
+  BB --> DD[Create ScoreItem Structure]
   DD --> EE[IsBlock: totalRisk >= 100]
   EE --> FF[IsSuspicious: totalRisk >= ScoreSuspicious]
   FF --> GG[IsDangerous: totalRisk >= ScoreDangerous]
@@ -343,74 +575,74 @@ graph TD
   HH --> II[Score: totalRisk]
   II --> JJ[Detail: combinedScore.Detail]
   
-  JJ --> KK[回傳完整 ScoreItem]:::success
+  JJ --> KK[Return Complete ScoreItem]:::success
   CC --> KK
   
-  subgraph "並行 Goroutine 執行群組"
-    subgraph "calcBasic: 基礎關聯偵測"
-      I1
-      J1
-      K1
-      L1
-      M1
-      N1
-    end
-    
-    subgraph "calcGeo: 地理位置分析"
-      I2
-      J2
-      K2
-      L2
-      M2
-      N2
-      O2
-      P2
-    end
-    
-    subgraph "calcBehavior: 時間模式分析"
-      I3
-      J3
-      K3
-      L3
-      M3
-      N3
-    end
-    
-    subgraph "calcFingerprint: 指紋關聯"
-      I4
-      J4
-      K4
-      L4
-      M4
-      N4
-      O4
-    end
+  subgraph "Parallel Goroutine Execution Group"
+  subgraph "calcBasic: Basic Correlation Detection"
+    I1
+    J1
+    K1
+    L1
+    M1
+    N1
   end
   
-  subgraph "同步控制與錯誤處理"
-    Q
-    R
-    S
-    T
-    U
+  subgraph "calcGeo: Geolocation Analysis"
+    I2
+    J2
+    K2
+    L2
+    M2
+    N2
+    O2
+    P2
   end
   
-  subgraph "最終風險評估與結果建構"
-    W
-    X
-    Y
-    Z
-    AA
-    BB
-    CC
-    DD
-    EE
-    FF
-    GG
-    HH
-    II
-    JJ
-    KK
+  subgraph "calcBehavior: Time Pattern Analysis"
+    I3
+    J3
+    K3
+    L3
+    M3
+    N3
+  end
+  
+  subgraph "calcFingerprint: Fingerprint Correlation"
+    I4
+    J4
+    K4
+    L4
+    M4
+    N4
+    O4
+  end
+  end
+  
+  subgraph "Synchronization Control & Error Handling"
+  Q
+  R
+  S
+  T
+  U
+  end
+  
+  subgraph "Final Risk Assessment & Result Construction"
+  W
+  X
+  Y
+  Z
+  AA
+  BB
+  CC
+  DD
+  EE
+  FF
+  GG
+  HH
+  II
+  JJ
+  KK
   end
   
   classDef success fill:#2ecc71,stroke:#27ae60,color:#ffffff
@@ -422,34 +654,22 @@ graph TD
 
 </details>
 
-### 配置介紹
+## License
 
-#### 可用參數
-```go
-type Parameter struct {
-	BlockToBan             int `json:"block_to_ban"`              // 封鎖到禁止的次數
-	BlockTimeMin           int `json:"block_time_min"`            // 最小封鎖時間（秒）
-	BlockTimeMax           int `json:"block_time_max"`            // 最大限制時間（秒）
-	RateLimitNormal        int `json:"rate_limit_normal"`         // 正常請求速率限制
-	RateLimitSuspicious    int `json:"rate_limit_suspicious"`     // 可疑請求速率限制
-	RateLimitDangerous     int `json:"rate_limit_dangerous"`      // 危險請求速率限制
-	SessionMultiIP         int `json:"session_multi_ip"`          // 單一 Session 允許的最大 IP 數
-	IPMultiDevice          int `json:"ip_multi_device"`           // 單一 IP 允許的最大設備數
-	DeviceMultiIP          int `json:"device_multi_ip"`           // 單一設備允許的最大 IP 數
-	LoginFailure           int `json:"login_failure"`             // 單一 Session 允許的最大登入失敗次數
-	NotFound404            int `json:"not_found_404"`             // 單一 Session 允許的最大 404 請求數
-	ScoreNormal            int `json:"score_normal"`              // 正常請求的風險分數
-	ScoreSuspicious        int `json:"score_suspicious"`          // 可疑請求的風險分數
-	ScoreDangerous         int `json:"score_dangerous"`           // 危險請求的風險分數
-	ScoreSessionMultiIP    int `json:"score_session_multi_ip"`    // 單一 Session 允許的最大 IP 數可疑分數
-	ScoreIPMultiDevice     int `json:"score_ip_multi_device"`     // 單一 IP 允許的最大設備數可疑分數
-	ScoreDeviceMultiIP     int `json:"score_device_multi_ip"`     // 單一設備允許的最大 IP 數可疑分數
-	ScoreFpMultiSession    int `json:"score_fp_multi_session"`    // 單一指紋允許的最大 Session 數可疑分數
-	ScoreGeoHopping        int `json:"score_geo_hopping"`         // 地理位置跳躍可疑分數
-	ScoreGeoFrequentSwitch int `json:"score_geo_frequent_switch"` // 地理位置頻繁切換可疑分數
-	ScoreGeoRapidChange    int `json:"score_geo_rapid_change"`    // 地理位置快速變化可疑分數
-	ScoreIntervalRequest   int `json:"score_interval_request"`    // 短時間內的請求數可疑分數
-	ScoreFrequencyRequest  int `json:"score_frequency_request"`   // 請求頻率可疑分數
-	ScoreLongConnection    int `json:"score_long_connection"`     // 長連接可疑分數
-}
-```
+This source code project is licensed under the [MIT](https://github.com/pardnchiu/FlexPlyr/blob/main/LICENSE) license.
+
+## Creator
+
+<img src="https://avatars.githubusercontent.com/u/25631760" align="left" width="96" height="96" style="margin-right: 0.5rem;">
+
+<h4 style="padding-top: 0">邱敬幃 Pardn Chiu</h4>
+
+<a href="mailto:dev@pardn.io" target="_blank">
+  <img src="https://pardn.io/image/email.svg" width="48" height="48">
+</a> <a href="https://linkedin.com/in/pardnchiu" target="_blank">
+  <img src="https://pardn.io/image/linkedin.svg" width="48" height="48">
+</a>
+
+***
+
+©️ 2025 [邱敬幃 Pardn Chiu](https://pardn.io)

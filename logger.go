@@ -35,6 +35,8 @@ func newLogger(config LogConfig) (*Logger, error) {
 	}
 	if config.MaxSize == 0 {
 		config.MaxSize = 16 * 1024 * 1024
+	} else {
+		config.MaxSize = config.MaxSize * 1024 * 1024
 	}
 
 	if err := os.MkdirAll(config.Path, 0755); err != nil {

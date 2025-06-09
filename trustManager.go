@@ -18,23 +18,21 @@ type TrustItem struct {
 }
 
 type TrustManager struct {
-	Logger    *Logger
-	Config    *Config
-	Redis     *redis.Client
-	Context   context.Context
-	Parameter *Parameter
-	Mutex     sync.RWMutex
-	Cache     map[string]*TrustItem
+	Logger  *Logger
+	Config  *Config
+	Redis   *redis.Client
+	Context context.Context
+	Mutex   sync.RWMutex
+	Cache   map[string]*TrustItem
 }
 
 func (i *IPGuardian) newTrustManager() *TrustManager {
 	manager := &TrustManager{
-		Logger:    i.Logger,
-		Config:    i.Config,
-		Redis:     i.Redis,
-		Context:   i.Context,
-		Parameter: &i.Config.Parameter,
-		Cache:     make(map[string]*TrustItem),
+		Logger:  i.Logger,
+		Config:  i.Config,
+		Redis:   i.Redis,
+		Context: i.Context,
+		Cache:   make(map[string]*TrustItem),
 	}
 
 	err := manager.load()
@@ -49,7 +47,10 @@ func (m *TrustManager) load() error {
 	m.Mutex.Lock()
 	defer m.Mutex.Unlock()
 
-	path := ".trust.json"
+	path := "./trust_list.json"
+	if m.Config.Filepath.TrustList != "" {
+		path = m.Config.Filepath.TrustList
+	}
 
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return nil
@@ -103,7 +104,10 @@ func (m *TrustManager) check(ip string) bool {
 }
 
 func (m *TrustManager) save() error {
-	path := ".trust.json"
+	path := "./trust_list.json"
+	if m.Config.Filepath.TrustList != "" {
+		path = m.Config.Filepath.TrustList
+	}
 
 	var list []TrustItem
 	for _, item := range m.Cache {

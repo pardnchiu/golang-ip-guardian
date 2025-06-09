@@ -18,20 +18,18 @@ type BlockItem struct {
 }
 
 type BlockManager struct {
-	Logger    *Logger
-	Config    *Config
-	Redis     *redis.Client
-	Context   context.Context
-	Parameter *Parameter
+	Logger  *Logger
+	Config  *Config
+	Redis   *redis.Client
+	Context context.Context
 }
 
 func (i *IPGuardian) newBlockManager() *BlockManager {
 	return &BlockManager{
-		Logger:    i.Logger,
-		Config:    i.Config,
-		Redis:     i.Redis,
-		Context:   i.Context,
-		Parameter: &i.Config.Parameter,
+		Logger:  i.Logger,
+		Config:  i.Config,
+		Redis:   i.Redis,
+		Context: i.Context,
 	}
 }
 
@@ -83,16 +81,16 @@ func (m *BlockManager) Add(ip string, reason string) error {
 		return err
 	}
 
-	var duration time.Duration = time.Duration(m.Parameter.BlockTimeMin)
+	var duration time.Duration = time.Duration(m.Config.Parameter.BlockTimeMin)
 
 	if isBlock && item != nil {
 		item.Reason += "\n" + reason
 		item.Count++
 		item.Last = now
 
-		duration = time.Duration(1<<item.Count) * time.Duration(m.Parameter.BlockTimeMin) // * 指數增長封鎖時間
-		if duration > time.Duration(m.Parameter.BlockTimeMax) {
-			duration = time.Duration(m.Parameter.BlockTimeMax)
+		duration = time.Duration(1<<item.Count) * time.Duration(m.Config.Parameter.BlockTimeMin) // * 指數增長封鎖時間
+		if duration > time.Duration(m.Config.Parameter.BlockTimeMax) {
+			duration = time.Duration(m.Config.Parameter.BlockTimeMax)
 		}
 	} else {
 		item = &BlockItem{

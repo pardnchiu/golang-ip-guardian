@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/smtp"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,23 +20,21 @@ type BanItem struct {
 }
 
 type BanManager struct {
-	Logger    *Logger
-	Config    *Config
-	Redis     *redis.Client
-	Context   context.Context
-	Parameter *Parameter
-	Mutex     sync.RWMutex
-	Cache     map[string]*BanItem
+	Logger  *Logger
+	Config  *Config
+	Redis   *redis.Client
+	Context context.Context
+	Mutex   sync.RWMutex
+	Cache   map[string]*BanItem
 }
 
 func (i *IPGuardian) newBanManager() *BanManager {
 	manager := &BanManager{
-		Logger:    i.Logger,
-		Config:    i.Config,
-		Redis:     i.Redis,
-		Context:   i.Context,
-		Parameter: &i.Config.Parameter,
-		Cache:     make(map[string]*BanItem),
+		Logger:  i.Logger,
+		Config:  i.Config,
+		Redis:   i.Redis,
+		Context: i.Context,
+		Cache:   make(map[string]*BanItem),
 	}
 
 	err := manager.load()
@@ -50,7 +49,10 @@ func (m *BanManager) load() error {
 	m.Mutex.Lock()
 	defer m.Mutex.Unlock()
 
-	path := ".ban.json"
+	path := "./ban_list.json"
+	if m.Config.Filepath.BanList != "" {
+		path = m.Config.Filepath.BanList
+	}
 
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return nil
@@ -104,7 +106,10 @@ func (m *BanManager) check(ip string) bool {
 }
 
 func (m *BanManager) save() error {
-	path := ".ban.json"
+	path := "./ban_list.json"
+	if m.Config.Filepath.BanList != "" {
+		path = m.Config.Filepath.BanList
+	}
 
 	var list []BanItem
 	for _, item := range m.Cache {
@@ -125,8 +130,12 @@ func (m *BanManager) sendEmail(ip string, reason string) {
 	}
 
 	subject := fmt.Sprintf("[IP Guardian] IP %s has been blacklisted", ip)
-	body := ""
-	msg := fmt.Sprintf("Subject: %s\r\n\r\n%s", subject, body)
+	body := fmt.Sprintf("[IP Guardian] IP %s has been blacklisted", ip)
+	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n%s",
+		m.Config.Email.From,
+		strings.Join(m.Config.Email.To, ","),
+		subject,
+		body)
 
 	auth := smtp.PlainAuth("", m.Config.Email.Username, m.Config.Email.Password, m.Config.Email.Host)
 	addr := fmt.Sprintf("%s:%d", m.Config.Email.Host, m.Config.Email.Port)
