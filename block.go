@@ -1,4 +1,4 @@
-package golangIPGuardian
+package golangIPSentry
 
 import (
 	"context"
@@ -9,23 +9,15 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-type BlockItem struct {
-	IP      string `json:"ip"`
-	Reason  string `json:"reason"`
-	AddedAt int64  `json:"added_at"`
-	Count   int    `json:"count"`
-	Last    int64  `json:"last"`
-}
-
-type BlockManager struct {
+type BlockIPManager struct {
 	Logger  *Logger
 	Config  *Config
 	Redis   *redis.Client
 	Context context.Context
 }
 
-func (i *IPGuardian) newBlockManager() *BlockManager {
-	return &BlockManager{
+func (i *IPGuardian) newBlocIPkManager() *BlockIPManager {
+	return &BlockIPManager{
 		Logger:  i.Logger,
 		Config:  i.Config,
 		Redis:   i.Redis,
@@ -33,18 +25,22 @@ func (i *IPGuardian) newBlockManager() *BlockManager {
 	}
 }
 
-func (m *BlockManager) check(ip string) bool {
+func (m *BlockIPManager) IsBlock(ip string) bool {
 	key := fmt.Sprintf(redisBlock, ip)
 
 	exist, err := m.Redis.Exists(m.Context, key).Result()
-	if err == nil && exist > 0 {
+	if err == redis.Nil {
+		return false
+	}
+
+	if exist > 0 {
 		return true
 	}
 
 	return false
 }
 
-func (m *BlockManager) checkBlockItem(ip string) (bool, *BlockItem, error) {
+func (m *BlockIPManager) checkBlockIP(ip string) (bool, *IPItem, error) {
 	key := fmt.Sprintf(redisBlock, ip)
 
 	exists, err := m.Redis.Exists(m.Context, key).Result()
@@ -61,7 +57,7 @@ func (m *BlockManager) checkBlockItem(ip string) (bool, *BlockItem, error) {
 		return true, nil, err
 	}
 
-	var item BlockItem
+	var item IPItem
 	if err := json.Unmarshal([]byte(data), &item); err != nil {
 		return true, nil, err
 	}
@@ -70,18 +66,18 @@ func (m *BlockManager) checkBlockItem(ip string) (bool, *BlockItem, error) {
 }
 
 // * public
-func (m *BlockManager) Add(ip string, reason string) error {
+func (m *BlockIPManager) Add(ip string, reason string) error {
 	key := fmt.Sprintf(redisBlock, ip)
-	now := time.Now().Unix()
+	now := time.Now().UTC().Unix()
 
-	var item *BlockItem
+	var item *IPItem
 
-	isBlock, item, err := m.checkBlockItem(ip)
+	isBlock, item, err := m.checkBlockIP(ip)
 	if err != nil {
 		return err
 	}
 
-	var duration time.Duration = time.Duration(m.Config.Parameter.BlockTimeMin)
+	var duration time.Duration = time.Duration(m.Config.Parameter.BlockTimeMin) // 默認封鎖時間
 
 	if isBlock && item != nil {
 		item.Reason += "\n" + reason
@@ -93,7 +89,7 @@ func (m *BlockManager) Add(ip string, reason string) error {
 			duration = time.Duration(m.Config.Parameter.BlockTimeMax)
 		}
 	} else {
-		item = &BlockItem{
+		item = &IPItem{
 			IP:      ip,
 			Reason:  reason,
 			AddedAt: now,
@@ -104,11 +100,11 @@ func (m *BlockManager) Add(ip string, reason string) error {
 
 	data, err := json.Marshal(item)
 	if err != nil {
-		return m.Logger.error("Failed to parse block item", err.Error())
+		return m.Logger.Error(err, "Failed to parse block item")
 	}
 
 	if err := m.Redis.Set(m.Context, key, data, duration).Err(); err != nil {
-		return m.Logger.error("Failed to update block item in redis", err.Error())
+		return m.Logger.Error(err, "Failed to update block item in redis")
 	}
 
 	return nil

@@ -1,5 +1,5 @@
 // TODO 需花時間重新檢查
-package golangIPGuardian
+package golangIPSentry
 
 import (
 	"fmt"
@@ -381,7 +381,7 @@ func (i *IPGuardian) calcBasic(device *Device, flags *[]string, riskScore *RiskS
 	notFound404Cmd := pipe.Get(i.Context, notFound404Key)
 	loginFailureCmd := pipe.Get(i.Context, loginFailureKey)
 
-	if _, err := pipe.Exec(i.Context); err != nil {
+	if _, err := pipe.Exec(i.Context); err != nil && err.Error() != "redis: nil" {
 		return fmt.Errorf("failed to execute redis pipeline: %w", err)
 	}
 
@@ -452,7 +452,7 @@ func (i *IPGuardian) calcGeo(device *Device, flags *[]string, score *RiskScore) 
 
 	location := fmt.Sprintf("%s:%s:%.4f:%.4f", record.CountryCode, city, record.Latitude, record.Longitude)
 	geoKey := fmt.Sprintf(redisGeoLocation, device.SessionID)
-	locationWithTime := fmt.Sprintf("%d:%s", time.Now().UnixMilli(), location)
+	locationWithTime := fmt.Sprintf("%d:%s", time.Now().UTC().UnixMilli(), location)
 
 	log.Print(location, geoKey)
 
@@ -490,7 +490,7 @@ func (i *IPGuardian) calcBehavior(device *Device, flags *[]string, score *RiskSc
 	lastRequestStr, err1 := lastRequestCmd.Result()
 	if err1 == nil && lastRequestStr != "" {
 		lastRequest, _ := strconv.ParseInt(lastRequestStr, 10, 64)
-		timeDiff := time.Now().UnixMilli() - lastRequest
+		timeDiff := time.Now().UTC().UnixMilli() - lastRequest
 		intervalHistoryKey := fmt.Sprintf(redisInterval, device.SessionID)
 
 		pipe2 := i.Redis.Pipeline()
@@ -567,15 +567,15 @@ func (i *IPGuardian) calcBehavior(device *Device, flags *[]string, score *RiskSc
 	sessionStartStr, err2 := sessionStartCmd.Result()
 
 	pipe3 := i.Redis.Pipeline()
-	pipe3.SetEx(i.Context, intervalKey, time.Now().UnixMilli(), time.Hour)
+	pipe3.SetEx(i.Context, intervalKey, time.Now().UTC().UnixMilli(), time.Hour)
 
 	if err2 == redis.Nil {
-		pipe3.SetEx(i.Context, sessionStartKey, time.Now().UnixMilli(), 15*time.Minute)
+		pipe3.SetEx(i.Context, sessionStartKey, time.Now().UTC().UnixMilli(), 15*time.Minute)
 	} else if err2 == nil {
 		pipe3.Expire(i.Context, sessionStartKey, 15*time.Minute)
 
 		sessionStart, _ := strconv.ParseInt(sessionStartStr, 10, 64)
-		duration := time.Now().UnixMilli() - sessionStart
+		duration := time.Now().UTC().UnixMilli() - sessionStart
 
 		if duration > 4*3600*1000 {
 			*flags = append(*flags, "extremely_long_connection")
@@ -605,7 +605,7 @@ func (i *IPGuardian) calcFingerprint(device *Device, flags *[]string, score *Ris
 		i.Config.Parameter.ScoreFpMultiSession = 50
 	}
 
-	currentMinute := time.Now().UnixMilli() / 60000
+	currentMinute := time.Now().UTC().UnixMilli() / 60000
 	fingerprintSessionKey := fmt.Sprintf(redisFpSession, currentMinute, device.Fingerprint)
 
 	if err := i.Redis.SAdd(i.Context, fingerprintSessionKey, device.SessionID).Err(); err != nil {
@@ -676,19 +676,19 @@ func getMapKeys(m map[string]bool) []string {
 func (i *IPGuardian) NotFound404(w http.ResponseWriter, r *http.Request) error {
 	device, err := i.getDevice(w, r)
 	if err != nil {
-		return i.Logger.error("Failed to get device", err.Error())
+		return i.Logger.Error(err, "Failed to get device")
 	}
 
 	key := fmt.Sprintf(redisNotFound404, device.SessionID)
 
 	count, err := i.Redis.Incr(i.Context, key).Result()
 	if err != nil {
-		return i.Logger.error("Failed to increase 404 count", err.Error())
+		return i.Logger.Error(err, "Failed to increase 404 count")
 	}
 
 	if count == 1 {
 		if err := i.Redis.Expire(i.Context, key, time.Hour).Err(); err != nil {
-			return i.Logger.error("Failed to set expiration for 404 count", err.Error())
+			return i.Logger.Error(err, "Failed to set expiration for 404 count")
 		}
 	}
 
@@ -699,19 +699,19 @@ func (i *IPGuardian) NotFound404(w http.ResponseWriter, r *http.Request) error {
 func (i *IPGuardian) LoginFailure(w http.ResponseWriter, r *http.Request) error {
 	device, err := i.getDevice(w, r)
 	if err != nil {
-		return i.Logger.error("Failed to get device", err.Error())
+		return i.Logger.Error(err, "Failed to get device")
 	}
 
 	key := fmt.Sprintf(redisLoginFailure, device.SessionID)
 
 	count, err := i.Redis.Incr(i.Context, key).Result()
 	if err != nil {
-		return i.Logger.error("Failed to increase login failure count", err.Error())
+		return i.Logger.Error(err, "Failed to increase login failure count")
 	}
 
 	if count == 1 {
 		if err := i.Redis.Expire(i.Context, key, time.Hour).Err(); err != nil {
-			return i.Logger.error("Failed to set expiration for login failure count", err.Error())
+			return i.Logger.Error(err, "Failed to set expiration for login failure count")
 		}
 	}
 

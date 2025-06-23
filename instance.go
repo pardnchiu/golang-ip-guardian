@@ -1,14 +1,22 @@
-package golangIPGuardian
+package golangIPSentry
 
 import (
 	"context"
 	"fmt"
 	"net/http"
 
+	goLogger "github.com/pardnchiu/go-logger"
 	"github.com/redis/go-redis/v9"
 )
 
-func New(c *Config) (*IPGuardian, error) {
+func New(c Config) (*IPGuardian, error) {
+	c.Log = validLoggerConfig(c)
+
+	logger, err := goLogger.New(c.Log)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to initialize `pardnchiu/go-logger`: %w", err)
+	}
+
 	if c.Redis.Host == "" {
 		c.Redis.Host = "localhost"
 	}
@@ -17,18 +25,13 @@ func New(c *Config) (*IPGuardian, error) {
 		c.Redis.Port = 6379
 	}
 
-	logger, err := newLogger(c.Log)
-	if err != nil {
-		return nil, logger.error("Failed to init logger", err.Error())
-	}
-
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     fmt.Sprintf("%s:%d", c.Redis.Host, c.Redis.Port),
 		Password: c.Redis.Password,
 		DB:       c.Redis.DB,
 	})
 	if _, err := redisClient.Ping(context.Background()).Result(); err != nil {
-		return nil, logger.error("Failed to connect Redis", err.Error())
+		return nil, logger.Error(err, "Failed to connect Redis")
 	}
 
 	// var abuseIPDBApi *AbuseIPDBApi
@@ -45,16 +48,16 @@ func New(c *Config) (*IPGuardian, error) {
 
 	instance := &IPGuardian{
 		Context: context.Background(),
-		Config:  c,
+		Config:  &c,
 		Redis:   redisClient,
 		Logger:  logger,
 		// AbuseIPDBApi: abuseIPDBApi,
 	}
 
 	instance.Manager = &Manager{
-		Trust: instance.newTrustManager(),
-		Ban:   instance.newBanManager(),
-		Block: instance.newBlockManager(),
+		Allow: instance.newAllowManager(),
+		Deny:  instance.newDenyIPManager(),
+		Block: instance.newBlocIPkManager(),
 	}
 
 	instance.GeoLite2 = instance.newGeoLite2()
@@ -72,7 +75,7 @@ func (i *IPGuardian) Close() error {
 		i.GeoLite2.close()
 	}
 
-	i.Logger.close()
+	i.Logger.Close()
 
 	return nil
 }
@@ -98,6 +101,15 @@ func (i *IPGuardian) Check(r *http.Request, w http.ResponseWriter) IPGuardianRes
 		return IPGuardianResult{
 			Success:    true,
 			StatusCode: http.StatusOK,
+		}
+	}
+
+	if device.Is.Block {
+		// * this device is banned, return error
+		return IPGuardianResult{
+			Success:    false,
+			StatusCode: http.StatusForbidden,
+			Error:      "Device is blocked, IP: " + device.IP.Address,
 		}
 	}
 
@@ -127,7 +139,7 @@ func (i *IPGuardian) Check(r *http.Request, w http.ResponseWriter) IPGuardianRes
 	}
 
 	if device.Is.Block && device.IP.BlockCount >= i.Config.Parameter.BlockToBan {
-		i.Manager.Ban.Add(device.IP.Address, "Device is blocked and continue to request, IP: "+device.IP.Address)
+		i.Manager.Deny.Add(device.IP.Address, "Device is blocked and continue to request, IP: "+device.IP.Address)
 		return IPGuardianResult{
 			Success:    false,
 			StatusCode: http.StatusForbidden,
@@ -138,7 +150,7 @@ func (i *IPGuardian) Check(r *http.Request, w http.ResponseWriter) IPGuardianRes
 	score, err := i.dynamicScore(device)
 	if err != nil {
 		// TODO: 後續要改寫，不能直接通過
-		i.Logger.error("Failed to detect suspicious activity", err.Error())
+		i.Logger.Error(err, "Failed to detect suspicious activity")
 	}
 
 	if score.IsBlock {
@@ -178,4 +190,24 @@ func (i *IPGuardian) Check(r *http.Request, w http.ResponseWriter) IPGuardianRes
 		Success:    true,
 		StatusCode: http.StatusOK,
 	}
+}
+
+func validLoggerConfig(c Config) *Log {
+	if c.Log == nil {
+		c.Log = &Log{
+			Path:    defaultLogPath,
+			Stdout:  false,
+			MaxSize: defaultLogMaxSize,
+		}
+	}
+	if c.Log.Path == "" {
+		c.Log.Path = defaultLogPath
+	}
+	if c.Log.MaxSize <= 0 {
+		c.Log.MaxSize = defaultLogMaxSize
+	}
+	if c.Log.MaxBackup <= 0 {
+		c.Log.MaxBackup = defaultLogMaxBackup
+	}
+	return c.Log
 }

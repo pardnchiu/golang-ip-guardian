@@ -1,328 +1,90 @@
-# IP Guardian (Golang)
+> [!Note]
+> This content is translated by LLM. Original text can be found [here](README.zh.md)
 
-> IP Guardian is a IP security protection package for Golang, providing real-time threat detection, dynamic risk scoring, device fingerprinting, and multi-layered security mechanisms. The system uses Redis as a high-speed cache layer, supporting concurrent processing and automated threat response.
+# IP Sentry (Golang)
 
-[![version](https://img.shields.io/github/v/tag/pardnchiu/golang-ip-guardian)](https://github.com/pardnchiu/golang-ip-guardian/releases)
+> A Go-based IP security protection package providing real-time threat detection, dynamic risk scoring, device fingerprinting, and multi-layered security mechanisms.
 
-## Feature
+[![license](https://img.shields.io/github/license/pardnchiu/go-ip-sentry)](LICENSE)
+[![version](https://img.shields.io/github/v/tag/pardnchiu/go-ip-sentry)](https://github.com/pardnchiu/go-ip-sentry/releases)
+[![readme](https://img.shields.io/badge/readme-中文-blue)](README.zh.md) 
 
-### Multi-Layered Security Protection
-- **Whitelist Management**: Trusted list automatically bypasses security checks with file synchronization
-- **Blacklist System**: Permanently blocks malicious IPs with integrated email notifications
-- **Dynamic Blocking**: Temporarily blocks suspicious activities with exponential time growth
-- **Auto-Escalation**: Repeated blocks automatically escalate to permanent bans
+## Three Core Features
+
+### Multi-Layer Security Protection
+- **Whitelist Management**: Trusted list automatically bypasses security checks with file synchronization support
+- **Blacklist System**: Permanent blocking of malicious IPs with integrated email notification
+- **Dynamic Blocking**: Temporary blocking of suspicious activities using exponential time growth
+- **Auto Escalation**: Repeated blocks automatically upgrade to permanent bans
 
 ### Intelligent Threat Detection
-- **Device Fingerprinting**: SHA256-encrypted unique device identification with 365-day tracking
+- **Device Fingerprinting**: SHA256 encrypted unique device identification with 365-day tracking
 - **Behavioral Analysis**: Request patterns, time intervals, and session tracking
-- **Geolocation Monitoring**: Cross-country jumping, rapid location changes, high-risk region detection
-- **Correlation Analysis**: Multi-device, multi-IP, multi-session anomaly detection
-- **Login Behavior**: Login failure count and 404 error frequency monitoring
+- **Geographic Monitoring**: Cross-country hopping, rapid location changes, and high-risk region detection
+- **Correlation Analysis**: Multi-device, multi-IP, and multi-session anomaly detection
+- **Login Behavior**: Login failure counts and 404 error frequency monitoring
 
-### High-Performance Architecture
-- **Concurrent Processing**: Parallel risk assessment with 4 simultaneous Goroutines
-- **Redis Caching**: Millisecond-level query response with 24-hour geolocation cache
-- **Pipeline Batching**: Reduced network latency with optimized Redis operations
-- **Memory Optimization**: Local cache and Redis dual-layer architecture
-- **HMAC Signatures**: Secure session ID validation
-
-### Dynamic Scoring System
+### Dynamic Scoring System (Customizable Thresholds)
 - **Real-time Calculation**: Multi-dimensional risk factor parallel computation
 - **Adaptive Adjustment**: Dynamic rate limiting based on threat levels
-- **Threshold Management**: Suspicious, dangerous, and blocking three-tier classification
-- **Auto Rate Limiting**: Normal(100), Suspicious(50), Dangerous(20) three-tier limits
+- **Threshold Management**: Three-tier classification: suspicious, dangerous, blocking
+- **Auto Rate Limiting**: Normal, suspicious, dangerous three-level restrictions
 
-## System Architecture
+## Flow Charts
 
-### Core Components
-
-#### IPGuardian Main Instance
-- Manages Redis connections, logging, and configuration parameters
-- Coordinates Trust, Ban, and Block sub-managers
-- Provides device checking and risk scoring functionality
-- Supports GeoLite2 geolocation detection
-
-#### Trust Manager (Whitelist)
-- Maintains trusted IP list
-- Supports memory cache and Redis persistence
-- File synchronization to `trust_list.json`
-- Supports tag-based categorization
-
-#### Ban Manager (Blacklist)
-- Manages permanently blocked IP addresses
-- Provides SMTP email notification functionality
-- File synchronization to `ban_list.json`
-- Records blocking reasons and timestamps
-
-#### Block Manager (Temporary Blocking)
-- Implements exponential growth blocking time mechanism (1<<count)
-- Automatic blocking count tracking
-- Auto-transfers to blacklist when threshold exceeded
-- Supports maximum blocking time limits
-
-### Device Detection Mechanism
-
-#### IP Resolution Mechanism
-Supports multiple Proxy Header checks in priority order:
-1. `CF-Connecting-IP` (Cloudflare)
-2. `X-Forwarded-For` (Standard reverse proxy)
-3. `X-Real-IP` (Nginx)
-4. `X-Client-IP` (Apache)
-5. `X-Cluster-Client-IP` (Cluster)
-6. `X-Forwarded`, `Forwarded-For`, `Forwarded`
-
-Automatically identifies internal/external IPs, supporting these internal ranges:
-- `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`
-- `127.0.0.0/8`, `169.254.0.0/16`
-- `::1/128`, `fc00::/7`
-
-#### Device Fingerprint Identification
-- SHA256 fingerprint based on Platform/Browser/OS/128-character UUID
-- HMAC-SHA256 signed Session ID
-- HttpOnly Secure Cookie protection against XSS attacks
-- Supports SameSite=Strict mode
-
-### Risk Scoring System
-
-#### Basic Checks (calcBasic)
-- **Session Multi-IP Check**: Single session using multiple IPs
-- **IP Multi-Device Check**: Single IP corresponding to multiple device fingerprints
-- **Device Multi-IP Check**: Single device using multiple IPs
-- **Login Failure Monitoring**: Records failure count, triggers risk when threshold exceeded
-- **404 Error Tracking**: Monitors abnormal path probing behavior
-
-#### Geolocation Analysis (calcGeo)
-- **High-Risk Countries**: Configurable high-risk region list
-- **Geographic Jumping**: More than 4 countries within 1 hour triggers alert
-- **Frequent Switching**: City switching more than 4 times within 1 hour
-- **Rapid Changes**: Movement speed exceeding 800 km/h or crossing 500 km within 30 minutes
-- **Distance Calculation**: Uses Haversine formula to calculate Earth surface distance
-
-#### Behavioral Analysis (calcBehavior)
-- **Request Interval Regularity Detection**: Variance < 1000 with regular intervals
-- **Long Connection Time Monitoring**: Tiered alerts for exceeding 1/2/4 hours
-- **Frequent Request Pattern Recognition**: More than 16 requests within 500ms
-- **Extreme Regularity Detection**: Variance < 100 with samples ≥ 8
-
-#### Fingerprint Analysis (calcFingerprint)
-- **Same Fingerprint Multi-Session Detection**: Single fingerprint with more than 2 sessions within 1 minute
-- **Minute-Level Statistics Protection**: Uses timestamp segmentation to avoid false positives
-
-### Middleware Integration
-
-#### Gin Framework
-```go
-router.Use(guardian.GinMiddleware())
-```
-- Automatic JSON error responses
-- Complete HTTP status code support
-- Supports `c.Abort()` request interruption
-
-#### Standard HTTP
-```go
-http.Handle("/", guardian.HTTPMiddleware(yourHandler))
-```
-- Handler wrapper pattern
-- Standard HTTP response format
-- Complete error handling mechanism
-
-## Configuration Parameters
-
-### File Path Configuration
-```go
-type Filepath struct {
-  CityDB    string `json:"city_db"`    // GeoLite2-City.mmdb
-  CountryDB string `json:"country_db"` // GeoLite2-Country.mmdb
-  TrustList string `json:"trust_list"` // trust_list.json
-  BanList   string `json:"ban_list"`   // ban_list.json
-}
-```
-
-### Core Parameters
-
-```go
-type Parameter struct {
-  HighRiskCountry        []string `json:"high_risk_country"`         // High-risk country list
-  BlockToBan             int      `json:"block_to_ban"`              // Block to ban threshold count
-  BlockTimeMin           int      `json:"block_time_min"`            // Minimum block time (seconds)
-  BlockTimeMax           int      `json:"block_time_max"`            // Maximum block time (seconds)
-  RateLimitNormal        int      `json:"rate_limit_normal"`         // Normal request rate limit
-  RateLimitSuspicious    int      `json:"rate_limit_suspicious"`     // Suspicious request rate limit
-  RateLimitDangerous     int      `json:"rate_limit_dangerous"`      // Dangerous request rate limit
-  SessionMultiIP         int      `json:"session_multi_ip"`          // Max IPs per session
-  IPMultiDevice          int      `json:"ip_multi_device"`           // Max devices per IP
-  DeviceMultiIP          int      `json:"device_multi_ip"`           // Max IPs per device
-  LoginFailure           int      `json:"login_failure"`             // Max login failures per session
-  NotFound404            int      `json:"not_found_404"`             // Max 404 requests per session
-  ScoreNormal            int      `json:"score_normal"`              // Normal request risk score
-  ScoreSuspicious        int      `json:"score_suspicious"`          // Suspicious request threshold
-  ScoreDangerous         int      `json:"score_dangerous"`           // Dangerous request threshold
-  ScoreSessionMultiIP    int      `json:"score_session_multi_ip"`    // Session multi-IP risk score
-  ScoreIPMultiDevice     int      `json:"score_ip_multi_device"`     // IP multi-device risk score
-  ScoreDeviceMultiIP     int      `json:"score_device_multi_ip"`     // Device multi-IP risk score
-  ScoreFpMultiSession    int      `json:"score_fp_multi_session"`    // Fingerprint multi-session risk score
-  ScoreGeoHighRisk       int      `json:"score_geo_high_risk"`       // High-risk geolocation score
-  ScoreGeoHopping        int      `json:"score_geo_hopping"`         // Geographic hopping score
-  ScoreGeoFrequentSwitch int      `json:"score_geo_frequent_switch"` // Frequent location switch score
-  ScoreGeoRapidChange    int      `json:"score_geo_rapid_change"`    // Rapid location change score
-  ScoreIntervalRequest   int      `json:"score_interval_request"`    // Short interval request score
-  ScoreFrequencyRequest  int      `json:"score_frequency_request"`   // Request frequency score
-  ScoreLongConnection    int      `json:"score_long_connection"`     // Long connection score
-  ScoreLoginFailure      int      `json:"score_login_failure"`       // Login failure score
-  ScoreNotFound404       int      `json:"score_not_found_404"`       // 404 request score
-}
-```
-
-## API Reference
-
-### Public Methods
-
-#### Initialization
-```go
-guardian, err := golangIPGuardian.New(&golangIPGuardian.Config{
-  Redis: golangIPGuardian.Redis{
-    Host: "localhost",
-    Port: 6379,
-  },
-  // Other configurations...
-})
-```
-
-#### Main Check
-```go
-result := guardian.Check(r, w)
-if !result.Success {
-  // Handle blocked requests
-  log.Printf("Request blocked: %s", result.Error)
-}
-```
-
-#### Manual Management
-```go
-// Add to trust list
-guardian.Manager.Trust.Add("192.168.1.100", "Internal server")
-
-// Add to ban list
-guardian.Manager.Ban.Add("1.2.3.4", "Malicious attack")
-
-// Add to block list
-guardian.Manager.Block.Add("5.6.7.8", "Suspicious behavior")
-
-// Record login failure
-guardian.LoginFailure(w, r)
-
-// Record 404 error
-guardian.NotFound404(w, r)
-```
-
-## File Formats
-
-### trust_list.json
-```json
-[
-  {
-  "ip": "192.168.1.100",
-  "tag": "Internal server",
-  "added_at": 1703980800
-  }
-]
-```
-
-### ban_list.json
-```json
-[
-  {
-  "ip": "1.2.3.4",
-  "reason": "Malicious attack",
-  "added_at": 1703980800
-  }
-]
-```
-
-## Performance Features
-
-### Redis Optimization
-- Uses Pipeline batch operations to reduce network latency
-- Automatic expiration time settings to prevent memory leaks
-- Dual-layer cache architecture: Local memory + Redis
-
-### Concurrent Processing
-- 4 Goroutines executing risk assessment in parallel
-- Mutex protection for shared resources
-- Unified error channel for exception handling
-
-### Memory Management
-- Local cache reduces Redis queries
-- Periodic cleanup of expired data
-- Minimized memory allocation
-
-## Security Features
-
-### Session Security
-- HMAC-SHA256 signature verification
-- HttpOnly Cookie prevents XSS
-- SameSite=Strict prevents CSRF
-- 30-day sliding window updates
-
-### Device Tracking
-- SHA256 fingerprint hashing
-- 365-day long-term tracking
-- 128-character random keys
-- Prevents fingerprint spoofing
-
-## System Architecture
-
-### Main Flow
+<details>
+<summary>Main Flow</summary>
 
 ```mermaid
 graph TD
- A[HTTP Request Entry] --> B[Start Check Process]
- B --> C[Call Device Info to Get Device Data]
- %% Device Info simplified view
- C --> C1[See Device Info Flow]:::module
- C1 --> D[Device Info Creation Complete]
- D --> D1{Device Info Success?}
- D1 -->|Failed| REJECT
- %% Main validation logic
- D1 -->|Success| E[Start Main Validation Flow]
- E --> |Whitelist| SUCCESS[Allow Access]
- E -->|Blacklist| REJECT[Reject Request]
- E -->|Block List| I{Exceed Block to Ban Count}
- I -->|Yes| J[Add to Blacklist and Notify Developer]
- J --> REJECT
- I -->|No| REJECT
- E -->|No Label| FFF{Has AbuseIPDB Token}
- FFF -->|Yes| ABUSE[Call AbuseIPDB to Get Risk Score]
- ABUSE --> ABUSE1[See AbuseIPDB Check Flow]:::module
- ABUSE1 --> ABUSE2{Is Malicious IP?}
- ABUSE2 -->|Yes| AD12[Add to Block List]
- ABUSE2 -->|No| L[Call Dynamic Scoring for Risk Assessment]
- FFF -->|No| L
- %% Dynamic Score simplified view
- L --> L1[See Dynamic Scoring Flow]:::module
- L1 --> R1{Dynamic Scoring Success?}
- R1 -->|Failed| REJECT
- R1 -->|Success| T{Reach Block Score}
- T -->|Yes| AD12
- AD12 --> REJECT
- T -->|No| V{Check Rate Limit Based on Risk Level}
- V -->|No| SUCCESS:::success
- V -->|Yes| REJECT:::danger
- classDef module fill: #3498db,stroke: #2980b9,color: #ffffff
- classDef success fill: #2ecc71,stroke: #27ae60,color: #ffffff
- classDef danger fill: #e74c3c,stroke: #c0392b,color: #ffffff
+  A[HTTP Request Entry] --> B[Start Check Process]
+  B --> C[Get Device Info]
+  C --> C1[See Device Info Flow]:::module
+  C1 --> D[Device Info Created]
+  D --> D1{Device Info Success?}
+  D1 -->|Failed| REJECT
+  D1 -->|Success| E[Start Main Validation]
+  E --> |Whitelist| SUCCESS[Allow Access]
+  E -->|Blacklist| REJECT[Reject Request]
+  E -->|Blocklist| I{Exceeded Block-to-Ban Count}
+  I -->|Yes| J[Add to Blacklist and Notify Developer]
+  J --> REJECT
+  I -->|No| REJECT
+  E -->|No Flag| FFF{Has AbuseIPDB Token}
+  FFF -->|Yes| ABUSE[Call AbuseIPDB for Risk Score]
+  ABUSE --> ABUSE1[See AbuseIPDB Check Flow]:::module
+  ABUSE1 --> ABUSE2{Is Malicious IP?}
+  ABUSE2 -->|Yes| AD12[Add to Blocklist]
+  ABUSE2 -->|No| L[Call Dynamic Scoring for Risk Assessment]
+  FFF -->|No| L
+  L --> L1[See Dynamic Scoring Flow]:::module
+  L1 --> R1{Dynamic Scoring Success?}
+  R1 -->|Failed| REJECT
+  R1 -->|Success| T{Reached Block Score}
+  T -->|Yes| AD12
+  AD12 --> REJECT
+  T -->|No| V{Check Risk-Based Rate Limit}
+  V -->|No| SUCCESS:::success
+  V -->|Yes| REJECT:::danger
+  
+  classDef module fill:#3498db,stroke:#2980b9,color:#ffffff
+  classDef success fill:#2ecc71,stroke:#27ae60,color:#ffffff
+  classDef danger fill:#e74c3c,stroke:#c0392b,color:#ffffff
 ```
 
-### Device Info
+</details>
+
+<details>
+<summary>Device Information</summary>
 
 ```mermaid
 graph TD
-  A[HTTP Request Received] --> B[getDevice Extract Device Info]
+  A[Receive HTTP Request] --> B[getDevice Extract Device Info]
   
   B --> C[r.UserAgent Get User-Agent]
   C --> D[getClientIP IP Address Resolution]
   
-  D --> E[Check Proxy Header Priority]
+  D --> E[Check Proxy Server Header Priority]
   E --> F1[CF-Connecting-IP Cloudflare]
   E --> F2[X-Forwarded-For Standard Reverse Proxy]
   E --> F3[X-Real-IP Nginx]
@@ -373,24 +135,24 @@ graph TD
   FF -->|No| HH[createSignedSessionID Create New Session]
   
   DD -->|No| HH
-  HH --> II[generateSessionID Generate 32 Character ID]
+  HH --> II[generateSessionID Generate 32-char ID]
   II --> JJ[signSessionID HMAC Signature]
   JJ --> KK[Format: s:sessionID.signature]
-  KK --> LL[Set 30 Day HttpOnly Cookie]
+  KK --> LL[Set 30-day HttpOnly Cookie]
   
   GG --> MM[getFingerprint Device Fingerprint Generation]
   LL --> MM
   
   MM --> NN{Device Cookie Exists?}
   NN -->|Yes| OO[Read Existing Device Key]
-  NN -->|No| PP[uuid Generate 128 Character Random Key]
+  NN -->|No| PP[uuid Generate 128-char Random Key]
   
   OO --> QQ[Extend Cookie 365 Days]
-  PP --> RR[Set 365 Day HttpOnly Cookie]
+  PP --> RR[Set 365-day HttpOnly Cookie]
   
   QQ --> SS[Create Fingerprint Info String]
   RR --> SS
-  SS --> TT[Platform/Browser/Type/OS/Key]
+  SS --> TT[Platform/Browser/Type/System/Key]
   TT --> UU[SHA256 Hash Calculation]
   UU --> VV[hex.EncodeToString Fingerprint Generation]
   
@@ -433,7 +195,7 @@ graph TD
   BB
   end
   
-  subgraph "Session Management (30 Day Sliding Window)"
+  subgraph "Session Management (30-day Sliding Window)"
   CC
   DD
   EE
@@ -446,7 +208,7 @@ graph TD
   LL
   end
   
-  subgraph "Device Fingerprint Tracking (365 Day Sliding Window)"
+  subgraph "Device Fingerprint Tracking (365-day Sliding Window)"
   MM
   NN
   OO
@@ -467,33 +229,10 @@ graph TD
   class II,JJ,UU,VV crypto
 ```
 
-### AbuseIPDB (Not Implemented)
+</details>
 
-```mermaid
-flowchart TD
-  START["External IP"] --> TOKEN{"AbuseIPDB Token Check"}
-  
-  TOKEN -->|"Token Not Found"| NO_TOKEN["Skip Threat Intelligence Check"]
-  TOKEN -->|"Token Found"| CACHE{"AbuseIPDB Cache Check"}
-  
-  CACHE -->|"Cache Hit"| REPUTATION{"IP Reputation Verification"}
-  CACHE -->|"Cache Miss"| API_QUERY["AbuseIPDB API Query and Update Cache (24 hours)"]
-  
-  API_QUERY --> API_STATUS{"API Response Status"}
-  API_STATUS -->|"Query Failed"| API_FAIL["API Query Failed"]
-  API_STATUS -->|"Query Success"| REPUTATION
-  
-  REPUTATION -->|"Confirmed Malicious IP"| MALICIOUS["Mark as Threat IP"]
-  REPUTATION -->|"Normal Reputation"| CLEAN["Mark as Clean IP"]
-  
-  NO_TOKEN --> SKIP["Skip Check Result"]
-  API_FAIL --> SKIP
-  MALICIOUS --> RESULT["Return Check Result"]
-  CLEAN --> RESULT
-  SKIP --> RESULT
-```
-
-### Dynamic Scoring
+<details>
+<summary>Dynamic Scoring</summary>
 
 ```mermaid
 graph TD
@@ -501,16 +240,16 @@ graph TD
   B --> C[Create WaitGroup, Mutex, errChan]
   C --> D[Initialize Shared Results: combinedFlags, combinedScore]
   
-  D --> E[Simultaneously Start Four Goroutines]
+  D --> E[Launch Four Goroutines Simultaneously]
   
-  E --> |wg.Add| I1[Define BasicItem Operation Matrix]
-  E --> |wg.Add| I2{GeoChecker & Database Available?}
+  E --> |wg.Add| I1[Define Basic Item Operation Matrix]
+  E --> |wg.Add| I2{Geo Checker & Database Available?}
   E --> |wg.Add| I3[Redis Pipeline Get Interval Data]
   E --> |wg.Add| I4[Calculate Current Minute Timestamp]
   
   I1 --> J1[Redis Pipeline Batch Operations]
   J1 --> K1[SAdd + SCard + Expire Correlation Analysis]
-  K1 --> L1[Threshold Decision: count > threshold * 1.5]
+  K1 --> L1[Threshold Decision: Count > Threshold * 1.5]
   L1 --> M1[Generate localFlags, localScore]
   M1 --> N1[mu.Lock Safe Result Merge]
   
@@ -518,8 +257,8 @@ graph TD
   I2 -->|Yes| K2[net.ParseIP Address Resolution]
   K2 --> L2[GeoIP2 Country Query]
   L2 --> M2[Redis LPUSH Location History]
-  M2 --> N2[Analyze 1 Hour Location Changes]
-  N2 --> O2[Detect Geographic Jumping/Switching/Rapid Changes]
+  M2 --> N2[Analyze 1-hour Location Changes]
+  N2 --> O2[Detect Geographic Hopping/Switching/Rapid Changes]
   O2 --> P2[mu.Lock Safe Result Merge]
   J2 --> P2
   
@@ -531,9 +270,9 @@ graph TD
   
   I4 --> J4[Redis SADD Fingerprint-Session Association]
   J4 --> K4[Redis SCARD Calculate Session Count]
-  K4 --> L4{sessionCount > 2?}
-  L4 -->|Yes| M4[Mark fp_multi_session]
-  L4 -->|No| N4[No Anomaly Mark]
+  K4 --> L4{Session Count > 2?}
+  L4 -->|Yes| M4[Flag fp_multi_session]
+  L4 -->|No| N4[No Anomaly Flag]
   M4 --> O4[mu.Lock Safe Result Merge]
   N4 --> O4
   
@@ -549,20 +288,20 @@ graph TD
   U -->|Yes| KK
   U -->|No| W[calcScore Calculate Final Risk]
   
-  W --> X[Combined Risk Detection: Detail > 4]
-  X --> Y[math.Min Score Cap at 100]
-  Y --> Z{totalRisk > 100?}
+  W --> X[Comprehensive Risk Detection: Detail > 4]
+  X --> Y[math.Min Score Cap 100]
+  Y --> Z{Total Risk > 100?}
   Z -->|Yes| AA[Manager.Block.Add Auto Block]
   Z -->|No| BB[Risk Level Classification]
   
   AA --> CC[IsBlock: true]
   
   BB --> DD[Create ScoreItem Structure]
-  DD --> EE[IsBlock: totalRisk >= 100]
-  EE --> FF[IsSuspicious: totalRisk >= ScoreSuspicious]
-  FF --> GG[IsDangerous: totalRisk >= ScoreDangerous]
+  DD --> EE[IsBlock: Total Risk >= 100]
+  EE --> FF[IsSuspicious: Total Risk >= ScoreSuspicious]
+  FF --> GG[IsDangerous: Total Risk >= ScoreDangerous]
   GG --> HH[Flag: combinedFlags]
-  HH --> II[Score: totalRisk]
+  HH --> II[Score: Total Risk]
   II --> JJ[Detail: combinedScore.Detail]
   
   JJ --> KK[Return Complete ScoreItem]:::success
@@ -578,7 +317,7 @@ graph TD
     N1
   end
   
-  subgraph "calcGeo: Geolocation Analysis"
+  subgraph "calcGeo: Geographic Location Analysis"
     I2
     J2
     K2
@@ -642,11 +381,332 @@ graph TD
   class J1,J3,J4,K1,K2,K3,K4 calc
 ```
 
+</details>
+
+<details>
+<summary>AbuseIPDB (Not Yet Implemented)</summary>
+
+```mermaid
+flowchart TD
+  START["External IP Address"] --> TOKEN{"AbuseIPDB Token Check"}
+  
+  TOKEN -->|"Token Not Found"| NO_TOKEN["Skip Threat Intelligence Check"]
+  TOKEN -->|"Token Found"| CACHE{"AbuseIPDB Cache Check"}
+  
+  CACHE -->|"Cache Hit"| REPUTATION{"IP Reputation Verification"}
+  CACHE -->|"Cache Miss"| API_QUERY["AbuseIPDB API Query & Update Cache (24 hours)"]
+  
+  API_QUERY --> API_STATUS{"API Response Status"}
+  API_STATUS -->|"Query Failed"| API_FAIL["API Query Failed"]
+  API_STATUS -->|"Query Success"| REPUTATION
+  
+  REPUTATION -->|"Confirmed Malicious IP"| MALICIOUS["Flag as Threat IP"]
+  REPUTATION -->|"Normal Reputation"| CLEAN["Flag as Clean IP"]
+  
+  NO_TOKEN --> SKIP["Skip Check Result"]
+  API_FAIL --> SKIP
+  MALICIOUS --> RESULT["Return Check Result"]
+  CLEAN --> RESULT
+  SKIP --> RESULT
+```
+
+</details>
+
+## Dependencies
+
+- [`github.com/gin-gonic/gin`](https://github.com/gin-gonic/gin)
+- [`github.com/redis/go-redis/v9`](https://github.com/redis/go-redis)
+- [`github.com/oschwald/geoip2-golang`](https://github.com/oschwald/geoip2-golang)
+- [`github.com/pardnchiu/go-logger`](https://github.com/pardnchiu/go-logger)
+
+## Usage
+
+### Installation
+```bash
+go get github.com/pardnchiu/go-ip-sentry
+```
+
+### Basic Initialization
+```go
+package main
+
+import (
+  "log"
+  "net/http"
+  
+  is "github.com/pardnchiu/go-ip-sentry"
+)
+
+func main() {
+  config := is.Config{
+    Redis: is.Redis{
+      Host:     "localhost",
+      Port:     6379,
+      Password: "",
+      DB:       0,
+    },
+    Log: &is.Log{
+      Path:    "./logs/ip-sentry",
+      Stdout:  false,
+      MaxSize: 16 * 1024 * 1024,
+    },
+    Filepath: is.Filepath{
+      CityDB:    "./GeoLite2-City.mmdb",
+      CountryDB: "./GeoLite2-Country.mmdb",
+      WhiteList: "./whiteList.json",
+      BlackList: "./blackList.json",
+    },
+    Parameter: is.Parameter{
+      BlockToBan:             3,
+      BlockTimeMin:           30 * time.Minute,
+      BlockTimeMax:           1800 * time.Minute,
+      RateLimitNormal:        100,
+      RateLimitSuspicious:    50,
+      RateLimitDangerous:     20,
+      ScoreSuspicious:        50,
+      ScoreDangerous:         80,
+    },
+  }
+  
+  guardian, err := is.New(config)
+  if err != nil {
+    log.Fatal(err)
+  }
+  defer guardian.Close()
+  
+  // HTTP middleware
+  handler := guardian.HTTPMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+    w.WriteHeader(http.StatusOK)
+    w.Write([]byte("Welcome"))
+  }))
+  
+  http.Handle("/", handler)
+  log.Println("Server starting on :8080")
+  log.Fatal(http.ListenAndServe(":8080", nil))
+}
+```
+
+### Gin Framework Integration
+```go
+package main
+
+import (
+  "github.com/gin-gonic/gin"
+  is "github.com/pardnchiu/go-ip-sentry"
+)
+
+func main() {
+  config := is.Config{
+    // Same configuration as above
+  }
+  
+  guardian, err := is.New(config)
+  if err != nil {
+    panic(err)
+  }
+  defer guardian.Close()
+  
+  r := gin.Default()
+  
+  // Use IP Sentry middleware
+  r.Use(guardian.GinMiddleware())
+  
+  r.GET("/", func(c *gin.Context) {
+    c.JSON(200, gin.H{
+      "message": "Welcome",
+    })
+  })
+  
+  r.Run(":8080")
+}
+```
+
+## Configuration Reference
+
+```go
+type Config struct {
+  Redis     Redis        `json:"redis"`     // Redis connection config
+  Email     *EmailConfig `json:"email"`     // Email notification config
+  Log       *Log         `json:"log"`       // Logging config
+  Filepath  Filepath     `json:"filepath"`  // File path config
+  Parameter Parameter    `json:"parameter"` // Parameter config
+}
+
+type Redis struct {
+  Host     string `json:"host"`     // Redis host
+  Port     int    `json:"port"`     // Redis port
+  Password string `json:"password"` // Redis password
+  DB       int    `json:"db"`       // Redis database
+}
+
+type EmailConfig struct {
+  Host     string                                 `json:"host"`     // SMTP host
+  Port     int                                    `json:"port"`     // SMTP port
+  Username string                                 `json:"username"` // SMTP username
+  Password string                                 `json:"password"` // SMTP password
+  From     string                                 `json:"from"`     // Sender
+  To       []string                               `json:"to"`       // Recipients
+  CC       []string                               `json:"cc"`       // CC recipients
+  Subject  *func(ip string, reason string) string `json:"-"`        // Custom subject
+  Body     *func(ip string, reason string) string `json:"-"`        // Custom body
+}
+
+type Log struct {
+  Path      string // Log directory path (default: ./logs/mysqlPool)
+  Stdout    bool   // Enable console output (default: false)
+  MaxSize   int64  // Max size before file rotation (default: 16*1024*1024)
+  MaxBackup int    // Number of log files to keep (default: 5)
+  Type      string // Output format: "json" for slog standard, "text" for tree format (default: "text")
+}
+
+type Filepath struct {
+  CityDB    string `json:"city_db"`    // GeoLite2-City.mmdb
+  CountryDB string `json:"country_db"` // GeoLite2-Country.mmdb
+  WhiteList string `json:"trust_list"` // Whitelist file
+  BlackList string `json:"ban_list"`   // Blacklist file
+}
+
+type Parameter struct {
+  HighRiskCountry        []string `json:"high_risk_country"`         // High-risk country list
+  BlockToBan             int      `json:"block_to_ban"`              // Block-to-ban count threshold
+  BlockTimeMin           int      `json:"block_time_min"`            // Minimum block time (seconds)
+  BlockTimeMax           int      `json:"block_time_max"`            // Maximum block time (seconds)
+  RateLimitNormal        int      `json:"rate_limit_normal"`         // Normal request rate limit
+  RateLimitSuspicious    int      `json:"rate_limit_suspicious"`     // Suspicious request rate limit
+  RateLimitDangerous     int      `json:"rate_limit_dangerous"`      // Dangerous request rate limit
+  SessionMultiIP         int      `json:"session_multi_ip"`          // Max IPs per session
+  IPMultiDevice          int      `json:"ip_multi_device"`           // Max devices per IP
+  DeviceMultiIP          int      `json:"device_multi_ip"`           // Max IPs per device
+  LoginFailure           int      `json:"login_failure"`             // Max login failures per session
+  NotFound404            int      `json:"not_found_404"`             // Max 404 requests per session
+  ScoreSuspicious        int      `json:"score_suspicious"`          // Suspicious request threshold
+  ScoreDangerous         int      `json:"score_dangerous"`           // Dangerous request threshold
+  ScoreSessionMultiIP    int      `json:"score_session_multi_ip"`    // Multi-IP session risk score
+  ScoreIPMultiDevice     int      `json:"score_ip_multi_device"`     // Multi-device IP risk score
+  ScoreDeviceMultiIP     int      `json:"score_device_multi_ip"`     // Multi-IP device risk score
+  ScoreFpMultiSession    int      `json:"score_fp_multi_session"`    // Multi-session fingerprint score
+  ScoreGeoHighRisk       int      `json:"score_geo_high_risk"`       // High-risk geographic score
+  ScoreGeoHopping        int      `json:"score_geo_hopping"`         // Geographic hopping score
+  ScoreGeoFrequentSwitch int      `json:"score_geo_frequent_switch"` // Frequent geo switch score
+  ScoreGeoRapidChange    int      `json:"score_geo_rapid_change"`    // Rapid geo change score
+  ScoreIntervalRequest   int      `json:"score_interval_request"`    // Short interval request score
+  ScoreFrequencyRequest  int      `json:"score_frequency_request"`   // Request frequency score
+  ScoreLongConnection    int      `json:"score_long_connection"`     // Long connection score
+  ScoreLoginFailure      int      `json:"score_login_failure"`       // Login failure score
+  ScoreNotFound404       int      `json:"score_not_found_404"`       // 404 request score
+}
+```
+
+## Available Functions
+
+### Instance Management
+
+- **New** - Create new instance
+  ```go
+  guardian, err := is.New(config)
+  ```
+
+- **Close** - Close instance
+  ```go
+  err := guardian.Close()
+  ```
+
+### IP Management
+
+- **Check** - IP check
+  ```go
+  result := guardian.Check(r, w)
+  ```
+
+- **Allow.Add** - Add to whitelist
+  ```go
+  err := guardian.Manager.Allow.Add("192.168.1.100", "Internal server")
+  ```
+
+- **Deny.Add** - Add to blacklist
+  ```go
+  err := guardian.Manager.Deny.Add("1.2.3.4", "Malicious attack")
+  ```
+
+- **Block.Add** - Add to blocklist
+  ```go
+  err := guardian.Manager.Block.Add("5.6.7.8", "Suspicious behavior")
+  ```
+
+- **LoginFailure** - Login failure
+  ```go
+  err := guardian.LoginFailure(w, r)
+  ```
+
+- **NotFound404** - 404 error
+  ```go
+  err := guardian.NotFound404(w, r)
+  ```
+
+#### Middleware Usage
+```go
+// Standard HTTP middleware
+handler := guardian.HTTPMiddleware(yourHandler)
+
+// Gin middleware
+router.Use(guardian.GinMiddleware())
+```
+
+## List Formats
+
+### whiteList.json
+```json
+[
+  {
+    "ip": "192.168.1.100",
+    "reason": "Internal server",
+    "added_at": 1703980800
+  }
+]
+```
+
+### blackList.json
+```json
+[
+  {
+    "ip": "1.2.3.4",
+    "reason": "Malicious attack",
+    "added_at": 1703980800
+  }
+]
+```
+
+### Risk Scoring System
+
+#### Basic Checks
+- **Session Multi-IP Check**: Single session using multiple IPs
+- **IP Multi-Device Check**: Single IP corresponding to multiple device fingerprints
+- **Device Multi-IP Check**: Single device using multiple IPs
+- **Login Failure Monitoring**: Record failure count, trigger risk when exceeding threshold
+- **404 Error Tracking**: Monitor abnormal path probing behavior
+
+#### Geographic Analysis
+- **High-Risk Countries**: Configurable high-risk region list
+- **Geographic Hopping**: Alert triggered by >4 countries within 1 hour
+- **Frequent Switching**: City switching >4 times within 1 hour
+- **Rapid Changes**: Movement speed >800 km/h or crossing 500 km within 30 minutes
+- **Distance Calculation**: Uses Haversine formula for Earth surface distance
+
+#### Behavioral Analysis
+- **Request Interval Regularity Detection**: Variance <1000 with regular intervals
+- **Long Connection Time Monitoring**: Tiered alerts for >1/2/4 hours
+- **Frequent Request Pattern Identification**: >16 requests within 500ms
+- **Extreme Regularity Detection**: Variance <100 with ≥8 samples
+
+#### Fingerprint Analysis
+- **Same Fingerprint Multi-Session Detection**: Single fingerprint >2 sessions within 1 minute
+- **Minute-Level Statistical Protection**: Uses timestamp segmentation to avoid false positives
+
 ## License
 
-This source code project is licensed under the [MIT](https://github.com/pardnchiu/FlexPlyr/blob/main/LICENSE) license.
+This source code project is licensed under the [MIT](LICENSE) license.
 
-## Creator
+## Author
 
 <img src="https://avatars.githubusercontent.com/u/25631760" align="left" width="96" height="96" style="margin-right: 0.5rem;">
 

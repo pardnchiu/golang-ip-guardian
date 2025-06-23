@@ -1,4 +1,4 @@
-package golangIPGuardian
+package golangIPSentry
 
 import (
 	"context"
@@ -11,57 +11,55 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-type TrustItem struct {
-	IP      string `json:"ip"`
-	Tag     string `json:"tag"`
-	AddedAt int64  `json:"added_at"`
-}
-
-type TrustManager struct {
+type AllowIPManager struct {
 	Logger  *Logger
 	Config  *Config
 	Redis   *redis.Client
 	Context context.Context
 	Mutex   sync.RWMutex
-	Cache   map[string]*TrustItem
+	Cache   map[string]*IPItem
 }
 
-func (i *IPGuardian) newTrustManager() *TrustManager {
-	manager := &TrustManager{
+func (i *IPGuardian) newAllowManager() *AllowIPManager {
+	manager := &AllowIPManager{
 		Logger:  i.Logger,
 		Config:  i.Config,
 		Redis:   i.Redis,
 		Context: i.Context,
-		Cache:   make(map[string]*TrustItem),
+		Cache:   make(map[string]*IPItem),
 	}
 
 	err := manager.load()
 	if err != nil {
-		i.Logger.error("Failed to load trust list from file", err.Error())
+		i.Logger.Error(err, "Failed to load white list from file")
 	}
 
 	return manager
 }
 
-func (m *TrustManager) load() error {
+func (m *AllowIPManager) load() error {
 	m.Mutex.Lock()
 	defer m.Mutex.Unlock()
 
-	path := "./trust_list.json"
-	if m.Config.Filepath.TrustList != "" {
-		path = m.Config.Filepath.TrustList
+	path := defaultWhiteListPath
+	// * custom path is exist, use it
+	if m.Config.Filepath.WhiteList != "" {
+		path = m.Config.Filepath.WhiteList
 	}
 
+	// * file is not exist, skip importing
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return nil
 	}
 
 	data, err := os.ReadFile(path)
+	// * failed to read file, stop importing
 	if err != nil {
 		return err
 	}
 
-	var list []TrustItem
+	var list []IPItem
+	// * failed to parse json, stop importing
 	if err := json.Unmarshal(data, &list); err != nil {
 		return err
 	}
@@ -69,27 +67,29 @@ func (m *TrustManager) load() error {
 	pipe := m.Redis.Pipeline()
 
 	for _, item := range list {
-		m.Cache[item.IP] = &item
-
 		data, err := json.Marshal(item)
+		// * failed to parse item, skip this item
 		if err != nil {
 			continue
 		}
+		// * add item to memory cache
+		m.Cache[item.IP] = &item
 
-		key := fmt.Sprintf(redisTrust, item.IP)
+		key := fmt.Sprintf(redisAllow, item.IP)
 		pipe.Set(m.Context, key, data, 0)
 	}
 
 	_, err = pipe.Exec(m.Context)
+	// * failed to execute pipeline, stop importing
 	if err != nil {
-		return m.Logger.error("Failed to load trust list to redis", err.Error())
+		return m.Logger.Error(err, "Failed to store white list to redis")
 	}
 
 	return nil
 }
 
-func (m *TrustManager) check(ip string) bool {
-	key := fmt.Sprintf(redisTrust, ip)
+func (m *AllowIPManager) Check(ip string) bool {
+	key := fmt.Sprintf(redisAllow, ip)
 	exist, err := m.Redis.Exists(m.Context, key).Result()
 	if err == nil && exist > 0 {
 		return true
@@ -103,13 +103,14 @@ func (m *TrustManager) check(ip string) bool {
 	return cache
 }
 
-func (m *TrustManager) save() error {
-	path := "./trust_list.json"
-	if m.Config.Filepath.TrustList != "" {
-		path = m.Config.Filepath.TrustList
+// * save white list to file
+func (m *AllowIPManager) save() error {
+	path := defaultWhiteListPath
+	if m.Config.Filepath.WhiteList != "" {
+		path = m.Config.Filepath.WhiteList
 	}
 
-	var list []TrustItem
+	var list []IPItem
 	for _, item := range m.Cache {
 		list = append(list, *item)
 	}
@@ -122,31 +123,30 @@ func (m *TrustManager) save() error {
 	return os.WriteFile(path, data, 0644)
 }
 
-// * public
-func (m *TrustManager) Add(ip string, tag string) error {
+func (m *AllowIPManager) Add(ip string, tag string) error {
 	m.Mutex.Lock()
 	defer m.Mutex.Unlock()
 
-	item := &TrustItem{
+	item := &IPItem{
 		IP:      ip,
-		Tag:     tag,
-		AddedAt: time.Now().Unix(),
+		Reason:  tag,
+		AddedAt: time.Now().UTC().Unix(),
 	}
 
 	m.Cache[ip] = item
 
 	data, err := json.Marshal(item)
 	if err != nil {
-		return m.Logger.error("Failed to parse trust item", err.Error())
+		return m.Logger.Error(err, "Failed to parse white ip")
 	}
 
-	key := fmt.Sprintf(redisTrust, ip)
+	key := fmt.Sprintf(redisAllow, ip)
 	if err := m.Redis.Set(m.Context, key, data, 0).Err(); err != nil {
-		return m.Logger.error("Failed to save trust item to redis", err.Error())
+		return m.Logger.Error(err, "Failed to store white ip to redis")
 	}
 
 	if err := m.save(); err != nil {
-		return m.Logger.error("Failed to save trust item to file", err.Error())
+		return m.Logger.Error(err, "Failed to save white ip to file")
 	}
 
 	return nil

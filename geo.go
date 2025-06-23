@@ -1,4 +1,4 @@
-package golangIPGuardian
+package golangIPSentry
 
 import (
 	"context"
@@ -57,14 +57,14 @@ func (i *IPGuardian) newGeoLite2() *GeoLite2 {
 
 	cityDB, err := geoip2.Open(i.Config.Filepath.CityDB)
 	if err != nil {
-		i.Logger.warning("Failed to load GeoLite2-City.mmdb", err.Error())
+		i.Logger.WarnError(err, "Failed to load GeoLite2-City.mmdb")
 	} else {
 		checker.CityDB = cityDB
 	}
 
 	countryDB, err := geoip2.Open(i.Config.Filepath.CountryDB)
 	if err != nil {
-		i.Logger.warning("Failed to load GeoLite2-Country.mmdb", err.Error())
+		i.Logger.Warn(err, "Failed to load GeoLite2-Country.mmdb")
 	} else {
 		checker.CountryDB = countryDB
 	}
@@ -112,7 +112,7 @@ func (c *GeoLite2) query(ip string) (*Location, error) {
 
 	parsedIP := net.ParseIP(ip)
 	if parsedIP == nil {
-		return nil, c.Logger.error("Invalid IP address format: " + ip)
+		return nil, c.Logger.Error(nil, "Invalid IP address format: "+ip)
 	}
 
 	if c.CityDB != nil {
@@ -266,7 +266,7 @@ func (c *GeoLite2) checkHopping(locations []Location, flags *[]string, riskScore
 	list := make(map[string]bool)
 
 	for _, loc := range locations {
-		if loc.Timestamp >= time.Now().UnixMilli()-3600000 {
+		if loc.Timestamp >= time.Now().UTC().UnixMilli()-3600000 {
 			list[loc.Country] = true
 		}
 	}
@@ -289,7 +289,7 @@ func (c *GeoLite2) checkFrequentSwitch(locations []Location, flags *[]string, ri
 	cityList := make(map[string]bool)
 
 	for _, loc := range locations {
-		if loc.Timestamp >= time.Now().UnixMilli()-3600000 {
+		if loc.Timestamp >= time.Now().UTC().UnixMilli()-3600000 {
 			locationList = append(locationList, loc)
 			cityList[loc.City] = true
 		}
