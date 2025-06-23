@@ -479,7 +479,7 @@ func main() {
   }))
   
   http.Handle("/", handler)
-  log.Println("伺服器啟動在 :8080")
+  log.Println("伺服器啟動:8080")
   log.Fatal(http.ListenAndServe(":8080", nil))
 }
 ```
