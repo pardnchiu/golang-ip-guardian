@@ -567,33 +567,33 @@ type Filepath struct {
 }
 
 type Parameter struct {
-  HighRiskCountry        []string `json:"high_risk_country"`         // High-risk country list
-  BlockToBan             int      `json:"block_to_ban"`              // Block-to-ban count threshold
-  BlockTimeMin           int      `json:"block_time_min"`            // Minimum block time (seconds)
-  BlockTimeMax           int      `json:"block_time_max"`            // Maximum block time (seconds)
-  RateLimitNormal        int      `json:"rate_limit_normal"`         // Normal request rate limit
-  RateLimitSuspicious    int      `json:"rate_limit_suspicious"`     // Suspicious request rate limit
-  RateLimitDangerous     int      `json:"rate_limit_dangerous"`      // Dangerous request rate limit
-  SessionMultiIP         int      `json:"session_multi_ip"`          // Max IPs per session
-  IPMultiDevice          int      `json:"ip_multi_device"`           // Max devices per IP
-  DeviceMultiIP          int      `json:"device_multi_ip"`           // Max IPs per device
-  LoginFailure           int      `json:"login_failure"`             // Max login failures per session
-  NotFound404            int      `json:"not_found_404"`             // Max 404 requests per session
-  ScoreSuspicious        int      `json:"score_suspicious"`          // Suspicious request threshold
-  ScoreDangerous         int      `json:"score_dangerous"`           // Dangerous request threshold
-  ScoreSessionMultiIP    int      `json:"score_session_multi_ip"`    // Multi-IP session risk score
-  ScoreIPMultiDevice     int      `json:"score_ip_multi_device"`     // Multi-device IP risk score
-  ScoreDeviceMultiIP     int      `json:"score_device_multi_ip"`     // Multi-IP device risk score
-  ScoreFpMultiSession    int      `json:"score_fp_multi_session"`    // Multi-session fingerprint score
-  ScoreGeoHighRisk       int      `json:"score_geo_high_risk"`       // High-risk geographic score
-  ScoreGeoHopping        int      `json:"score_geo_hopping"`         // Geographic hopping score
-  ScoreGeoFrequentSwitch int      `json:"score_geo_frequent_switch"` // Frequent geo switch score
-  ScoreGeoRapidChange    int      `json:"score_geo_rapid_change"`    // Rapid geo change score
-  ScoreIntervalRequest   int      `json:"score_interval_request"`    // Short interval request score
-  ScoreFrequencyRequest  int      `json:"score_frequency_request"`   // Request frequency score
-  ScoreLongConnection    int      `json:"score_long_connection"`     // Long connection score
-  ScoreLoginFailure      int      `json:"score_login_failure"`       // Login failure score
-  ScoreNotFound404       int      `json:"score_not_found_404"`       // 404 request score
+  HighRiskCountry        []string       `json:"high_risk_country"`         // High-risk country list
+  BlockToBan             int            `json:"block_to_ban"`              // Block-to-ban count threshold
+  BlockTimeMin           time.Duration  `json:"block_time_min"`            // Minimum block time (seconds)
+  BlockTimeMax           time.Duration  `json:"block_time_max"`            // Maximum block time (seconds)
+  RateLimitNormal        int            `json:"rate_limit_normal"`         // Normal request rate limit
+  RateLimitSuspicious    int            `json:"rate_limit_suspicious"`     // Suspicious request rate limit
+  RateLimitDangerous     int            `json:"rate_limit_dangerous"`      // Dangerous request rate limit
+  SessionMultiIP         int            `json:"session_multi_ip"`          // Max IPs per session
+  IPMultiDevice          int            `json:"ip_multi_device"`           // Max devices per IP
+  DeviceMultiIP          int            `json:"device_multi_ip"`           // Max IPs per device
+  LoginFailure           int            `json:"login_failure"`             // Max login failures per session
+  NotFound404            int            `json:"not_found_404"`             // Max 404 requests per session
+  ScoreSuspicious        int            `json:"score_suspicious"`          // Suspicious request threshold
+  ScoreDangerous         int            `json:"score_dangerous"`           // Dangerous request threshold
+  ScoreSessionMultiIP    int            `json:"score_session_multi_ip"`    // Multi-IP session risk score
+  ScoreIPMultiDevice     int            `json:"score_ip_multi_device"`     // Multi-device IP risk score
+  ScoreDeviceMultiIP     int            `json:"score_device_multi_ip"`     // Multi-IP device risk score
+  ScoreFpMultiSession    int            `json:"score_fp_multi_session"`    // Multi-session fingerprint score
+  ScoreGeoHighRisk       int            `json:"score_geo_high_risk"`       // High-risk geographic score
+  ScoreGeoHopping        int            `json:"score_geo_hopping"`         // Geographic hopping score
+  ScoreGeoFrequentSwitch int            `json:"score_geo_frequent_switch"` // Frequent geo switch score
+  ScoreGeoRapidChange    int            `json:"score_geo_rapid_change"`    // Rapid geo change score
+  ScoreIntervalRequest   int            `json:"score_interval_request"`    // Short interval request score
+  ScoreFrequencyRequest  int            `json:"score_frequency_request"`   // Request frequency score
+  ScoreLongConnection    int            `json:"score_long_connection"`     // Long connection score
+  ScoreLoginFailure      int            `json:"score_login_failure"`       // Login failure score
+  ScoreNotFound404       int            `json:"score_not_found_404"`       // 404 request score
 }
 ```
 

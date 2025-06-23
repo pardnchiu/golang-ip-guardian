@@ -565,33 +565,33 @@ type Filepath struct {
 }
 
 type Parameter struct {
-  HighRiskCountry        []string `json:"high_risk_country"`         // 高風險國家列表
-  BlockToBan             int      `json:"block_to_ban"`              // 封鎖到禁用的次數
-  BlockTimeMin           int      `json:"block_time_min"`            // 最小封鎖時間（秒）
-  BlockTimeMax           int      `json:"block_time_max"`            // 最大封鎖時間（秒）
-  RateLimitNormal        int      `json:"rate_limit_normal"`         // 正常請求速率限制
-  RateLimitSuspicious    int      `json:"rate_limit_suspicious"`     // 可疑請求速率限制
-  RateLimitDangerous     int      `json:"rate_limit_dangerous"`      // 危險請求速率限制
-  SessionMultiIP         int      `json:"session_multi_ip"`          // 單一會話允許的最大 IP 數
-  IPMultiDevice          int      `json:"ip_multi_device"`           // 單一 IP 允許的最大設備數
-  DeviceMultiIP          int      `json:"device_multi_ip"`           // 單一設備允許的最大 IP 數
-  LoginFailure           int      `json:"login_failure"`             // 單一會話允許的最大登入失敗次數
-  NotFound404            int      `json:"not_found_404"`             // 單一會話允許的最大 404 請求數
-  ScoreSuspicious        int      `json:"score_suspicious"`          // 可疑請求閾值
-  ScoreDangerous         int      `json:"score_dangerous"`           // 危險請求閾值
-  ScoreSessionMultiIP    int      `json:"score_session_multi_ip"`    // 單一會話多 IP 風險分數
-  ScoreIPMultiDevice     int      `json:"score_ip_multi_device"`     // 單一 IP 多設備風險分數
-  ScoreDeviceMultiIP     int      `json:"score_device_multi_ip"`     // 單一設備多 IP 風險分數
-  ScoreFpMultiSession    int      `json:"score_fp_multi_session"`    // 單一指紋多會話風險分數
-  ScoreGeoHighRisk       int      `json:"score_geo_high_risk"`       // 高風險地理位置分數
-  ScoreGeoHopping        int      `json:"score_geo_hopping"`         // 地理位置跳躍分數
-  ScoreGeoFrequentSwitch int      `json:"score_geo_frequent_switch"` // 地理位置頻繁切換分數
-  ScoreGeoRapidChange    int      `json:"score_geo_rapid_change"`    // 地理位置快速變化分數
-  ScoreIntervalRequest   int      `json:"score_interval_request"`    // 短時間內請求分數
-  ScoreFrequencyRequest  int      `json:"score_frequency_request"`   // 請求頻率分數
-  ScoreLongConnection    int      `json:"score_long_connection"`     // 長連接分數
-  ScoreLoginFailure      int      `json:"score_login_failure"`       // 登入失敗分數
-  ScoreNotFound404       int      `json:"score_not_found_404"`       // 404 請求分數
+  HighRiskCountry        []string       `json:"high_risk_country"`         // 高風險國家列表
+  BlockToBan             int            `json:"block_to_ban"`              // 封鎖到禁用的次數
+  BlockTimeMin           time.Duration  `json:"block_time_min"`            // 最小封鎖時間（秒）
+  BlockTimeMax           time.Duration  `json:"block_time_max"`            // 最大封鎖時間（秒）
+  RateLimitNormal        int            `json:"rate_limit_normal"`         // 正常請求速率限制
+  RateLimitSuspicious    int            `json:"rate_limit_suspicious"`     // 可疑請求速率限制
+  RateLimitDangerous     int            `json:"rate_limit_dangerous"`      // 危險請求速率限制
+  SessionMultiIP         int            `json:"session_multi_ip"`          // 單一會話允許的最大 IP 數
+  IPMultiDevice          int            `json:"ip_multi_device"`           // 單一 IP 允許的最大設備數
+  DeviceMultiIP          int            `json:"device_multi_ip"`           // 單一設備允許的最大 IP 數
+  LoginFailure           int            `json:"login_failure"`             // 單一會話允許的最大登入失敗次數
+  NotFound404            int            `json:"not_found_404"`             // 單一會話允許的最大 404 請求數
+  ScoreSuspicious        int            `json:"score_suspicious"`          // 可疑請求閾值
+  ScoreDangerous         int            `json:"score_dangerous"`           // 危險請求閾值
+  ScoreSessionMultiIP    int            `json:"score_session_multi_ip"`    // 單一會話多 IP 風險分數
+  ScoreIPMultiDevice     int            `json:"score_ip_multi_device"`     // 單一 IP 多設備風險分數
+  ScoreDeviceMultiIP     int            `json:"score_device_multi_ip"`     // 單一設備多 IP 風險分數
+  ScoreFpMultiSession    int            `json:"score_fp_multi_session"`    // 單一指紋多會話風險分數
+  ScoreGeoHighRisk       int            `json:"score_geo_high_risk"`       // 高風險地理位置分數
+  ScoreGeoHopping        int            `json:"score_geo_hopping"`         // 地理位置跳躍分數
+  ScoreGeoFrequentSwitch int            `json:"score_geo_frequent_switch"` // 地理位置頻繁切換分數
+  ScoreGeoRapidChange    int            `json:"score_geo_rapid_change"`    // 地理位置快速變化分數
+  ScoreIntervalRequest   int            `json:"score_interval_request"`    // 短時間內請求分數
+  ScoreFrequencyRequest  int            `json:"score_frequency_request"`   // 請求頻率分數
+  ScoreLongConnection    int            `json:"score_long_connection"`     // 長連接分數
+  ScoreLoginFailure      int            `json:"score_login_failure"`       // 登入失敗分數
+  ScoreNotFound404       int            `json:"score_not_found_404"`       // 404 請求分數
 }
 ```
 
