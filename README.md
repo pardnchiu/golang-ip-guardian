@@ -569,8 +569,8 @@ type Filepath struct {
 type Parameter struct {
   HighRiskCountry        []string       `json:"high_risk_country"`         // High-risk country list
   BlockToBan             int            `json:"block_to_ban"`              // Block-to-ban count threshold
-  BlockTimeMin           time.Duration  `json:"block_time_min"`            // Minimum block time (seconds)
-  BlockTimeMax           time.Duration  `json:"block_time_max"`            // Maximum block time (seconds)
+  BlockTimeMin           time.Duration  `json:"block_time_min"`            // Minimum block time
+  BlockTimeMax           time.Duration  `json:"block_time_max"`            // Maximum block time
   RateLimitNormal        int            `json:"rate_limit_normal"`         // Normal request rate limit
   RateLimitSuspicious    int            `json:"rate_limit_suspicious"`     // Suspicious request rate limit
   RateLimitDangerous     int            `json:"rate_limit_dangerous"`      // Dangerous request rate limit

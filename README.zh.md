@@ -567,8 +567,8 @@ type Filepath struct {
 type Parameter struct {
   HighRiskCountry        []string       `json:"high_risk_country"`         // 高風險國家列表
   BlockToBan             int            `json:"block_to_ban"`              // 封鎖到禁用的次數
-  BlockTimeMin           time.Duration  `json:"block_time_min"`            // 最小封鎖時間（秒）
-  BlockTimeMax           time.Duration  `json:"block_time_max"`            // 最大封鎖時間（秒）
+  BlockTimeMin           time.Duration  `json:"block_time_min"`            // 最小封鎖時間
+  BlockTimeMax           time.Duration  `json:"block_time_max"`            // 最大封鎖時間
   RateLimitNormal        int            `json:"rate_limit_normal"`         // 正常請求速率限制
   RateLimitSuspicious    int            `json:"rate_limit_suspicious"`     // 可疑請求速率限制
   RateLimitDangerous     int            `json:"rate_limit_dangerous"`      // 危險請求速率限制
