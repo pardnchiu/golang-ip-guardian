@@ -415,7 +415,7 @@ flowchart TD
 - [`github.com/gin-gonic/gin`](https://github.com/gin-gonic/gin)
 - [`github.com/redis/go-redis/v9`](https://github.com/redis/go-redis)
 - [`github.com/oschwald/geoip2-golang`](https://github.com/oschwald/geoip2-golang)
-- [`github.com/pardnchiu/go-logger`](https://github.com/pardnchiu/go-logger)
+- [`github.com/pardnchiu/go-logger`](https://github.com/pardnchiu/go-logger): 如果你不需要，你可以 fork 然後使用你熟悉的取代。更可以到[這裡](https://forms.gle/EvNLwzpHfxWR2gmP6)進行投票讓我知道。
 
 ## 使用方法
 

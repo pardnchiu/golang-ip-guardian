@@ -417,7 +417,7 @@ flowchart TD
 - [`github.com/gin-gonic/gin`](https://github.com/gin-gonic/gin)
 - [`github.com/redis/go-redis/v9`](https://github.com/redis/go-redis)
 - [`github.com/oschwald/geoip2-golang`](https://github.com/oschwald/geoip2-golang)
-- [`github.com/pardnchiu/go-logger`](https://github.com/pardnchiu/go-logger)
+- [`github.com/pardnchiu/go-logger`](https://github.com/pardnchiu/go-logger): If you don't need this dependency, you can fork the project and replace it with your preferred logging solution. You can also vote [here](https://forms.gle/EvNLwzpHfxWR2gmP6) to let me know your preference.
 
 ## Usage
 
